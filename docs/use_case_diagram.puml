@@ -1,0 +1,243 @@
+@startuml Children's Handwriting Learning App - Use Case Diagram
+
+!define RECTANGLE
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam defaultTextAlignment center
+
+' Define actors
+actor "Child" as child #lightblue
+actor "Parent" as parent #lightgreen
+actor "Administrator" as admin #orange
+actor "ML System" as ml #pink
+
+' Define system boundaries
+rectangle "Mobile App\n(Flutter)" as mobile_system {
+  
+  ' Handwriting Practice Use Cases
+  package "Handwriting Practice" {
+    usecase "Select Character to Practice" as UC1
+    usecase "Draw Character on Canvas" as UC2
+    usecase "Submit Drawing for Evaluation" as UC3
+    usecase "View Evaluation Results" as UC4
+    usecase "Retry Character Practice" as UC5
+    usecase "View Character Templates" as UC6
+  }
+  
+  ' Gamification Use Cases
+  package "Gamification" {
+    usecase "Earn XP Points" as UC7
+    usecase "Level Up" as UC8
+    usecase "Earn Stars" as UC9
+    usecase "Unlock Badges" as UC10
+    usecase "View Achievements" as UC11
+    usecase "Track Daily Streak" as UC12
+  }
+  
+  ' Progress Tracking Use Cases
+  package "Progress Tracking" {
+    usecase "View Practice History" as UC13
+    usecase "View Character Mastery Levels" as UC14
+    usecase "View Performance Statistics" as UC15
+    usecase "Track Learning Progress" as UC16
+  }
+  
+  ' Parent Controls Use Cases
+  package "Parent Controls" {
+    usecase "Set Practice Goals" as UC17
+    usecase "Configure App Settings" as UC18
+    usecase "View Child's Progress" as UC19
+    usecase "Manage Child Profiles" as UC20
+    usecase "Enable/Disable Features" as UC21
+  }
+  
+  ' User Management
+  package "User Management" {
+    usecase "Create Child Profile" as UC22
+    usecase "Select Child Profile" as UC23
+    usecase "Customize Avatar" as UC24
+    usecase "Switch Between Profiles" as UC25
+  }
+}
+
+rectangle "Backend API\n(Node.js + Supabase)" as backend_system {
+  
+  ' Authentication & Authorization
+  package "Authentication" {
+    usecase "Register Parent Account" as UC26
+    usecase "Login to Account" as UC27
+    usecase "Logout from Account" as UC28
+    usecase "Verify JWT Token" as UC29
+  }
+  
+  ' Data Management
+  package "Data Management" {
+    usecase "Sync Practice Sessions" as UC30
+    usecase "Store Progress Data" as UC31
+    usecase "Retrieve Child Data" as UC32
+    usecase "Update Character Mastery" as UC33
+    usecase "Calculate Game Progress" as UC34
+  }
+  
+  ' Analytics & Reporting
+  package "Analytics" {
+    usecase "Generate Practice Statistics" as UC35
+    usecase "Calculate Average Scores" as UC36
+    usecase "Track Session Duration" as UC37
+    usecase "Monitor Streak Days" as UC38
+  }
+}
+
+rectangle "Admin Dashboard\n(React)" as admin_system {
+  
+  ' User Management
+  package "User Administration" {
+    usecase "View All Parent Accounts" as UC39
+    usecase "Search Users" as UC40
+    usecase "View User Details" as UC41
+    usecase "Manage User Accounts" as UC42
+  }
+  
+  ' Children Management
+  package "Children Administration" {
+    usecase "View All Children" as UC43
+    usecase "View Child Details" as UC44
+    usecase "Monitor Child Progress" as UC45
+    usecase "Filter Children by Criteria" as UC46
+  }
+  
+  ' Dashboard & Analytics
+  package "Dashboard & Reports" {
+    usecase "View System Overview" as UC47
+    usecase "View Usage Analytics" as UC48
+    usecase "Generate Reports" as UC49
+    usecase "Monitor System Health" as UC50
+    usecase "View Practice Trends" as UC51
+  }
+  
+  ' Admin Authentication
+  package "Admin Access" {
+    usecase "Admin Login" as UC52
+    usecase "Admin Logout" as UC53
+  }
+}
+
+rectangle "ML Inference System\n(On-Device)" as ml_system {
+  
+  package "ML Processing" {
+    usecase "Load ML Model" as UC54
+    usecase "Preprocess Drawing Data" as UC55
+    usecase "Evaluate Handwriting Quality" as UC56
+    usecase "Calculate Similarity Score" as UC57
+    usecase "Provide Feedback" as UC58
+  }
+}
+
+' Child interactions
+child --> UC1
+child --> UC2
+child --> UC3
+child --> UC4
+child --> UC5
+child --> UC6
+child --> UC11
+child --> UC13
+child --> UC14
+child --> UC15
+child --> UC23
+child --> UC24
+child --> UC25
+
+' Parent interactions
+parent --> UC17
+parent --> UC18
+parent --> UC19
+parent --> UC20
+parent --> UC21
+parent --> UC22
+parent --> UC26
+parent --> UC27
+parent --> UC28
+
+' Admin interactions
+admin --> UC39
+admin --> UC40
+admin --> UC41
+admin --> UC42
+admin --> UC43
+admin --> UC44
+admin --> UC45
+admin --> UC46
+admin --> UC47
+admin --> UC48
+admin --> UC49
+admin --> UC50
+admin --> UC51
+admin --> UC52
+admin --> UC53
+
+' ML System interactions
+ml --> UC54
+ml --> UC55
+ml --> UC56
+ml --> UC57
+ml --> UC58
+
+' Include relationships
+UC3 ..> UC2 : <<include>>
+UC4 ..> UC3 : <<include>>
+UC7 ..> UC3 : <<include>>
+UC9 ..> UC3 : <<include>>
+UC8 ..> UC7 : <<include>>
+UC10 ..> UC7 : <<include>>
+UC12 ..> UC3 : <<include>>
+UC30 ..> UC29 : <<include>>
+UC31 ..> UC29 : <<include>>
+UC32 ..> UC29 : <<include>>
+UC33 ..> UC30 : <<include>>
+UC34 ..> UC30 : <<include>>
+UC35 ..> UC32 : <<include>>
+UC36 ..> UC35 : <<include>>
+UC37 ..> UC35 : <<include>>
+UC38 ..> UC34 : <<include>>
+UC19 ..> UC32 : <<include>>
+UC45 ..> UC32 : <<include>>
+
+' Extend relationships
+UC5 ..> UC4 : <<extend>>
+UC6 ..> UC1 : <<extend>>
+UC16 ..> UC14 : <<extend>>
+UC25 ..> UC23 : <<extend>>
+UC41 ..> UC39 : <<extend>>
+UC44 ..> UC43 : <<extend>>
+
+' System interactions
+UC3 ..> UC56 : <<uses>>
+UC56 ..> UC55 : <<include>>
+UC4 ..> UC57 : <<uses>>
+UC4 ..> UC58 : <<uses>>
+
+note right of child
+  Primary user who practices
+  handwriting and earns rewards
+end note
+
+note right of parent
+  Manages child profiles,
+  monitors progress, and
+  configures app settings
+end note
+
+note right of admin
+  Oversees the entire system,
+  manages users, and views
+  analytics through dashboard
+end note
+
+note right of ml
+  On-device ML system that
+  evaluates handwriting quality
+  without sending data externally
+end note
+
+@enduml
