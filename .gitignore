@@ -35,3 +35,4 @@ build/
 backend/node_modules/
 backend/venv/
 backend/.env
+nul
