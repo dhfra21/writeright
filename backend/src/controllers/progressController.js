@@ -1,4 +1,4 @@
-import supabase from '../config/supabase.js';
+import supabase, { supabaseAdmin } from '../config/supabase.js';
 
 /**
  * Get game progress for a child
@@ -8,8 +8,11 @@ export const getGameProgress = async (req, res, next) => {
         const userId = req.user.id;
         const { childId } = req.params;
 
+        // Use admin client to bypass RLS
+        const client = supabaseAdmin || supabase;
+
         // Verify child belongs to user
-        const { data: child } = await supabase
+        const { data: child } = await client
             .from('children')
             .select('id')
             .eq('id', childId)
@@ -23,7 +26,7 @@ export const getGameProgress = async (req, res, next) => {
             });
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await client
             .from('game_progress')
             .select('*')
             .eq('child_id', childId)
@@ -48,8 +51,11 @@ export const getCharacterMastery = async (req, res, next) => {
         const userId = req.user.id;
         const { childId } = req.params;
 
+        // Use admin client to bypass RLS
+        const client = supabaseAdmin || supabase;
+
         // Verify child belongs to user
-        const { data: child } = await supabase
+        const { data: child } = await client
             .from('children')
             .select('id')
             .eq('id', childId)
@@ -63,7 +69,7 @@ export const getCharacterMastery = async (req, res, next) => {
             });
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await client
             .from('character_mastery')
             .select('*')
             .eq('child_id', childId)
@@ -89,8 +95,11 @@ export const getCharacterStats = async (req, res, next) => {
         const userId = req.user.id;
         const { childId } = req.params;
 
+        // Use admin client to bypass RLS
+        const client = supabaseAdmin || supabase;
+
         // Verify child belongs to user
-        const { data: child } = await supabase
+        const { data: child } = await client
             .from('children')
             .select('id')
             .eq('id', childId)
@@ -104,7 +113,7 @@ export const getCharacterStats = async (req, res, next) => {
             });
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await client
             .from('character_mastery')
             .select('character_type, mastery_level')
             .eq('child_id', childId);

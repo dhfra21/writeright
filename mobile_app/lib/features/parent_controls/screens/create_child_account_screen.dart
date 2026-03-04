@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../core/state/app_state.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../screens/parent_dashboard_screen.dart';
 import '../../../services/children/children_service.dart';
 
 class _AvatarOption {
@@ -98,16 +99,32 @@ class _CreateChildAccountScreenState extends State<CreateChildAccountScreen> {
       );
       if (child != null && mounted) {
         appState.selectChild(child);
+        setState(() => _isLoading = false);
+
+        // Navigate to dashboard
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const ParentDashboardScreen()),
+          (route) => false,
+        );
+        return;
       }
     }
 
     if (!mounted) return;
     setState(() => _isLoading = false);
-    Navigator.of(context).popUntil((route) => route.isFirst);
+
+    // Show error if child creation failed
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Failed to create child profile. Please try again.')),
+    );
   }
 
   void _skipToHome() {
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    // Go to dashboard even if no child is created
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const ParentDashboardScreen()),
+      (route) => false,
+    );
   }
 
   @override

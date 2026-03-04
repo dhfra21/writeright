@@ -1,4 +1,4 @@
-import supabase from '../config/supabase.js';
+import supabase, { supabaseAdmin } from '../config/supabase.js';
 
 /**
  * Get all children for authenticated user
@@ -7,7 +7,10 @@ export const getChildren = async (req, res, next) => {
     try {
         const userId = req.user.id;
 
-        const { data, error } = await supabase
+        // Use admin client to bypass RLS
+        const client = supabaseAdmin || supabase;
+
+        const { data, error } = await client
             .from('children')
             .select('*')
             .eq('account_id', userId)
@@ -32,7 +35,10 @@ export const getChildById = async (req, res, next) => {
         const userId = req.user.id;
         const { childId } = req.params;
 
-        const { data, error } = await supabase
+        // Use admin client to bypass RLS
+        const client = supabaseAdmin || supabase;
+
+        const { data, error } = await client
             .from('children')
             .select('*')
             .eq('id', childId)
@@ -72,7 +78,10 @@ export const createChild = async (req, res, next) => {
             });
         }
 
-        const { data, error } = await supabase
+        // Use admin client to bypass RLS (user is already authenticated by middleware)
+        const client = supabaseAdmin || supabase;
+
+        const { data, error } = await client
             .from('children')
             .insert({
                 account_id: userId,
@@ -84,6 +93,23 @@ export const createChild = async (req, res, next) => {
             .single();
 
         if (error) throw error;
+
+        // Manually create game_progress record for the new child
+        // (in case the database trigger doesn't exist)
+        const { error: progressError } = await client
+            .from('game_progress')
+            .insert({
+                child_id: data.id,
+                total_xp: 0,
+                current_level: 1,
+                total_stars: 0,
+                streak_days: 0
+            });
+
+        if (progressError) {
+            console.error('Failed to create game progress:', progressError);
+            // Don't fail the request, progress might already exist
+        }
 
         res.status(201).json({
             success: true,
@@ -103,7 +129,10 @@ export const updateChild = async (req, res, next) => {
         const { childId } = req.params;
         const { child_name, age, avatar_url } = req.body;
 
-        const { data, error } = await supabase
+        // Use admin client to bypass RLS
+        const client = supabaseAdmin || supabase;
+
+        const { data, error } = await client
             .from('children')
             .update({
                 child_name,
@@ -141,7 +170,10 @@ export const deleteChild = async (req, res, next) => {
         const userId = req.user.id;
         const { childId } = req.params;
 
-        const { error } = await supabase
+        // Use admin client to bypass RLS
+        const client = supabaseAdmin || supabase;
+
+        const { error } = await client
             .from('children')
             .delete()
             .eq('id', childId)

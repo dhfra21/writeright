@@ -3,8 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../core/state/app_state.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../screens/home_screen.dart';
+import '../../../screens/parent_dashboard_screen.dart';
 import '../../../services/auth/auth_service.dart';
+import '../../../services/children/children_service.dart';
 import 'parent_registration_screen.dart';
 
 class ParentLoginScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
   bool _isLoading = false;
 
   final _authService = AuthService();
+  final _childrenService = ChildrenService();
 
   @override
   void dispose() {
@@ -44,14 +46,26 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
     setState(() => _isLoading = false);
 
     if (result.success) {
-      await context.read<AppState>().setSession(
+      final appState = context.read<AppState>();
+      await appState.setSession(
             accessToken: result.accessToken!,
             refreshToken: result.refreshToken!,
             userId: result.userId!,
           );
+
       if (!mounted) return;
+
+      // Load children and select first one if available
+      final children = await _childrenService.getChildren(result.accessToken!);
+      if (!mounted) return;
+
+      if (children.isNotEmpty) {
+        appState.selectChild(children.first);
+      }
+
+      // Navigate to dashboard
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        MaterialPageRoute(builder: (_) => const ParentDashboardScreen()),
         (route) => false,
       );
     } else {

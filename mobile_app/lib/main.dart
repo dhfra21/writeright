@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/state/app_state.dart';
 import 'core/theme/app_theme.dart';
-import 'screens/home_screen.dart';
+import 'screens/auth_gate_screen.dart';
 import 'services/gamification/gamification_service.dart';
 
 void main() {
@@ -22,7 +22,7 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: 'WriteRight',
         theme: AppTheme.lightTheme,
-        home: const HomeScreen(),
+        home: const AuthGateScreen(),
         debugShowCheckedModeBanner: false,
       ),
     );
