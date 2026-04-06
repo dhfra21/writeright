@@ -1,8 +1,10 @@
 import express from 'express';
 import {
     getGameProgress,
+    updateGameProgress,
     getCharacterMastery,
-    getCharacterStats
+    getCharacterStats,
+    insertPracticeSession
 } from '../controllers/progressController.js';
 import { authenticate } from '../middleware/auth.js';
 
@@ -12,8 +14,11 @@ const router = express.Router();
 router.use(authenticate);
 
 // Progress routes
-router.get('/:childId/game-progress', getGameProgress);
+router.get('/:childId', getGameProgress); // GET /progress/:childId
+router.put('/:childId', updateGameProgress); // PUT /progress/:childId
+router.get('/:childId/game-progress', getGameProgress); // Alternative route
 router.get('/:childId/character-mastery', getCharacterMastery);
 router.get('/:childId/character-stats', getCharacterStats);
+router.post('/:childId/sessions', insertPracticeSession); // POST /progress/:childId/sessions
 
 export default router;

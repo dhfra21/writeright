@@ -1,75 +1,76 @@
-# ML Model Usage & Limitations
+# ML Evaluation — Usage & Behaviour
 
-## Model Purpose
+## Overview
 
-The pretrained ML models in this application are used **exclusively** for:
-- Evaluating handwriting shape similarity
-- Providing basic correctness feedback
-- Scoring handwriting quality (for gamification)
+Handwriting evaluation uses two concrete implementations of the `MLInferenceService` abstract interface, both located in `mobile_app/lib/services/ml_inference/`.
 
-## Model Limitations
+## Implementations
 
-### What the Model Does
+### 1. DistanceBasedService (default, always active)
 
-✅ Compares drawn character to reference template
-✅ Provides similarity score (0.0 - 1.0)
-✅ Basic shape recognition
+Fully on-device. No internet or API key required.
 
-### What the Model Does NOT Do
+**How it works:**
+- Normalises the child's drawn stroke coordinates
+- Compares them to reference character templates using Dynamic Time Warping (DTW) and Hausdorff distance
+- Returns a similarity score (0.0–1.0)
 
-❌ Recognize arbitrary handwriting
-❌ Learn from user input
-❌ Improve over time
-❌ Provide detailed stroke-by-stroke feedback
-❌ Detect all handwriting errors
+**When to use:** Always — this is the primary evaluator and the offline fallback.
 
-## Model Input/Output
+### 2. GroqVisionService (optional, cloud)
 
-### Input Format
+Sends a snapshot of the canvas to the Groq Vision API for richer evaluation.
 
-- Normalized stroke coordinates (x, y)
-- Character identifier (which letter/number)
-- Preprocessing: Size normalization, centering
+**Requires:** `GROQ_API_KEY` passed via `--dart-define` at build time.
 
-### Output Format
+**How it works:**
+- Captures canvas as an image
+- Posts to Groq Vision endpoint
+- Parses score and natural-language feedback from the response
+
+**When to use:** When an API key is configured and the device is online.
+
+## Output Format
+
+Both services return a `HandwritingResult`:
 
 ```dart
-class HandwritingScore {
-  double similarity;      // 0.0 - 1.0
-  double correctness;     // 0.0 - 1.0
-  String feedback;        // Simple feedback message
+class HandwritingResult {
+  double score;       // 0.0 – 1.0 similarity
+  int stars;          // 0–3 (derived from score thresholds)
+  String feedback;    // Human-readable feedback for the child
 }
 ```
 
-## Model Selection Criteria
+Star thresholds:
+- 3 stars: score >= 0.85
+- 2 stars: score >= 0.65
+- 1 star:  score >= 0.40
+- 0 stars: score < 0.40
 
-When choosing a pretrained model:
+## Evaluation Flow
 
-1. **Size**: < 10MB for mobile deployment
-2. **Latency**: < 500ms inference time
-3. **Accuracy**: > 80% similarity detection
-4. **Format**: TFLite or ONNX compatible
-5. **License**: Compatible with app distribution
+```
+DrawingCanvas captures strokes
+  → MLInferenceService.evaluate(character, strokes)
+  → DistanceBasedService always runs
+  → GroqVisionService runs if key is present and device is online
+  → Best available score used
+  → GamificationService converts score to XP + stars + badges
+  → TtsService speaks feedback to child
+  → ProgressService syncs session to backend
+```
 
-## Model Updates
+## What the Evaluator Does NOT Do
 
-- Models are updated via app updates only
-- No over-the-air model updates
-- Version checking for model compatibility
-- Rollback capability for problematic models
+- Does not learn or retrain from user input
+- Does not store or transmit stroke data
+- Does not provide stroke-by-stroke breakdown (DistanceBasedService gives aggregate score only)
+- Does not recognise arbitrary text — only compares to known character templates
 
-## Performance Considerations
+## Adding a New Inference Engine
 
-- Models run on CPU (GPU optional for better performance)
-- Inference happens asynchronously
-- Results cached for repeated evaluations
-- Error handling for model loading failures
-
-## Future Model Upgrades
-
-If upgrading to a better model:
-
-1. Test thoroughly on test devices
-2. Maintain backward compatibility
-3. Update model version in config
-4. Document changes in release notes
+1. Create a new class that extends `MLInferenceService`
+2. Implement the `evaluate(String character, List<Offset> strokes)` method
+3. Return a `HandwritingResult`
+4. Inject the new service wherever `MLInferenceService` is provided

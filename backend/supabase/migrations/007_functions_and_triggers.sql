@@ -177,8 +177,20 @@ BEGIN
         streak_days = current_streak,
         updated_at = NOW();
 
-    -- Calculate new level (every 100 XP = 1 level)
-    SELECT FLOOR((total_xp / 100.0)) + 1
+    -- Calculate new level using same thresholds as the mobile app:
+    -- [0, 100, 250, 450, 700, 1000, 1400, 1900, 2500, 3200]
+    SELECT CASE
+        WHEN total_xp >= 3200 THEN 10
+        WHEN total_xp >= 2500 THEN 9
+        WHEN total_xp >= 1900 THEN 8
+        WHEN total_xp >= 1400 THEN 7
+        WHEN total_xp >= 1000 THEN 6
+        WHEN total_xp >= 700  THEN 5
+        WHEN total_xp >= 450  THEN 4
+        WHEN total_xp >= 250  THEN 3
+        WHEN total_xp >= 100  THEN 2
+        ELSE 1
+    END
     INTO new_level
     FROM game_progress
     WHERE child_id = NEW.child_id;

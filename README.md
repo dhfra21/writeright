@@ -1,191 +1,174 @@
 # Children's Handwriting Learning App
 
-A Flutter mobile application that helps children practice handwriting using pretrained machine learning models for on-device evaluation, combined with gamification and progress tracking.
+A Flutter mobile application that helps children practice handwriting using AI-powered evaluation, gamification, and progress tracking — with a Node.js/Supabase backend for cloud sync.
 
-## 🎯 Project Overview
+## Project Overview
 
-This app enables children to practice writing letters and numbers with:
-- **ML-Powered Evaluation**: On-device handwriting quality assessment
-- **Gamification**: XP, levels, stars, and badges
-- **Offline-First**: Works completely offline
-- **Privacy-First**: No handwriting data leaves the device
-- **Child-Safe**: Designed with child safety and privacy in mind
+Children practice writing letters and numbers on a drawing canvas. Their strokes are evaluated by an on-device distance-based algorithm and optionally by Groq Vision AI. A gamification system rewards progress with XP, levels, stars, and badges. Parents manage accounts and monitor progress via a parent dashboard.
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 ISS PROJECT/
 ├── mobile_app/              # Flutter mobile application
 │   ├── lib/
-│   │   ├── core/           # Core utilities, constants, themes
-│   │   ├── features/        # Feature-based modules
+│   │   ├── core/            # Constants, theme, validators, route names
+│   │   ├── features/        # Feature modules
 │   │   │   ├── handwriting_practice/
 │   │   │   ├── gamification/
 │   │   │   ├── progress_tracking/
 │   │   │   └── parent_controls/
-│   │   ├── services/       # Business logic services
-│   │   │   ├── ml_inference/
-│   │   │   ├── storage/
-│   │   │   └── gamification/
-│   │   ├── models/         # Data models
-│   │   ├── widgets/        # Reusable UI components
-│   │   └── screens/        # App screens
-│   └── assets/             # Images, animations, sounds, fonts
+│   │   ├── services/        # Business logic services
+│   │   │   ├── ml_inference/  # DistanceBasedService + GroqVisionService
+│   │   │   ├── auth/          # Supabase Auth via REST
+│   │   │   ├── children/      # Child profile management
+│   │   │   ├── gamification/  # XP, levels, badges
+│   │   │   ├── progress/      # Practice session sync
+│   │   │   ├── storage/       # Local SQLite + SharedPreferences
+│   │   │   └── tts/           # Typecast cloud TTS
+│   │   ├── models/          # Data models (badge, handwriting_result, user_progress)
+│   │   ├── widgets/         # Reusable UI components
+│   │   └── screens/         # Top-level screens (home, onboarding, parent dashboard)
+│   └── assets/              # Images, animations, sounds, fonts
 │
-├── ml_models/              # Pretrained ML models
-│   ├── pretrained/         # .tflite or .onnx model files
-│   └── templates/          # Reference character templates
+├── backend/                 # Express.js REST API
+│   └── src/
+│       ├── config/          # App config, Supabase client
+│       ├── controllers/     # Route handlers (auth, children, progress, gamification)
+│       ├── middleware/       # JWT auth, error handling
+│       └── routes/          # API route definitions (/api/v1/*)
 │
-├── backend/                # Optional backend (no ML)
-│   ├── api/                # API endpoints
-│   └── config/             # Configuration files
+├── admin-dashboard/         # React web admin panel
+│   └── src/
+│       ├── pages/           # Dashboard, Users, Children, Analytics, Login
+│       ├── components/      # Sidebar, StatCard, shadcn/ui components
+│       ├── contexts/        # AuthContext
+│       └── lib/             # Supabase client, API helpers
 │
-├── docs/                   # Documentation
-│   ├── architecture/       # Architecture docs
-│   └── privacy/            # Privacy & safety docs
-│
-└── scripts/                # Build and utility scripts
+└── docs/                    # Architecture, database schema, privacy docs
 ```
 
-## 🛠 Technology Stack
+## Technology Stack
 
-- **Frontend**: Flutter (Dart)
-- **ML Inference**: TensorFlow Lite or ONNX Runtime
-- **Storage**: SQLite (local), SharedPreferences
-- **State Management**: Provider
-- **Backend** (optional): Node.js/Python/Go
+| Layer | Technology |
+|-------|-----------|
+| Mobile | Flutter (Dart), Provider state management |
+| Local storage | SQLite (`sqflite`), SharedPreferences |
+| ML evaluation | Distance-based (on-device) + Groq Vision API |
+| Text-to-speech | Typecast cloud TTS API |
+| Backend | Node.js, Express.js (ES modules) |
+| Admin dashboard | React 19, Vite, Tailwind CSS, shadcn/ui, Recharts |
+| Database | Supabase (PostgreSQL + RLS) |
+| Auth | Supabase Auth (JWT) |
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
 - Flutter SDK (>=3.0.0)
-- Dart SDK
-- Android Studio / Xcode (for mobile development)
-- Git
+- Node.js (>=18)
+- Android Studio (for Android development)
+- A physical Android device or emulator
 
-### Installation
+### 1. Backend setup
 
-1. Clone the repository
-2. Navigate to `mobile_app/` directory
-3. Install dependencies:
-   ```bash
-   flutter pub get
-   ```
-4. Add pretrained ML model to `ml_models/pretrained/`
-5. Update `pubspec.yaml` to include ML inference package:
-   - For TensorFlow Lite: Uncomment `tflite_flutter`
-   - For ONNX: Uncomment `onnxruntime`
-6. Run the app:
-   ```bash
-   flutter run
-   ```
+```bash
+cd backend
+npm install
+```
 
-## 📚 Documentation
+Create `backend/.env`:
+```
+PORT=3000
+NODE_ENV=development
+API_VERSION=v1
+SUPABASE_URL=<your-supabase-url>
+SUPABASE_ANON_KEY=<your-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
+ALLOWED_ORIGINS=http://localhost:3000
+```
 
-- [Architecture Overview](docs/architecture/ARCHITECTURE.md)
-- [Privacy & Child Safety](docs/privacy/PRIVACY.md)
-- [ML Model Usage](docs/architecture/MODEL_USAGE.md)
-- [Backend Documentation](backend/README.md)
-- [ML Models Guide](ml_models/README.md)
+Start the backend:
+```bash
+npm run dev
+```
 
-## 🎮 Features
+### 2. Mobile app setup
 
-### Core Features
+```bash
+cd mobile_app
+flutter pub get
+```
 
-- **Handwriting Practice**: Draw letters and numbers on canvas
-- **ML Evaluation**: Real-time handwriting quality assessment
-- **Gamification**: Earn XP, level up, collect stars and badges
-- **Progress Tracking**: View practice history and statistics
-- **Parent Controls**: Settings and privacy controls
+Create `mobile_app/.env`:
+```
+# For physical device: use your machine's local WiFi IP
+API_BASE_URL=http://192.168.x.x:3000/api/v1
 
-### Design Principles
+# For Android emulator only:
+# API_BASE_URL=http://10.0.2.2:3000/api/v1
 
-- ✅ Offline-first architecture
-- ✅ Privacy-by-default
-- ✅ Child-safe UX
-- ✅ Simple and intuitive interface
-- ✅ Clear separation of concerns
+SUPABASE_URL=<your-supabase-url>
+SUPABASE_ANON_KEY=<your-anon-key>
+GROQ_API_KEY=<your-groq-key>          # optional, for AI handwriting evaluation
+TYPECAST_API_KEY=<your-typecast-key>  # optional, for voice feedback
+```
 
-## 🔒 Privacy & Security
+Run the app (env vars are passed via `--dart-define`):
+```bash
+bash run_dev.sh
+```
 
-- **No Data Collection**: Handwriting data never leaves the device
-- **Local Storage**: All progress stored locally
-- **Optional Sync**: Cloud sync only for progress metadata (with parent consent)
-- **COPPA Compliant**: Child privacy protections built-in
+Or manually:
+```bash
+flutter run -d <device-id> \
+  --dart-define=API_BASE_URL=http://192.168.x.x:3000/api/v1 \
+  --dart-define=SUPABASE_URL=<url> \
+  --dart-define=SUPABASE_ANON_KEY=<key> \
+  --dart-define=GROQ_API_KEY=<key> \
+  --dart-define=TYPECAST_API_KEY=<key>
+```
 
-## 🤖 ML Model Integration
+## Features
 
-### Supported Formats
+- **Handwriting Practice** — Draw letters and numbers on an interactive canvas
+- **AI Evaluation** — On-device distance-based scoring; optional Groq Vision for richer feedback
+- **Gamification** — XP, levels, stars, and badge system
+- **Progress Tracking** — Practice history synced to Supabase
+- **Voice Feedback** — Encouraging audio feedback via Typecast TTS
+- **Parent Dashboard** — Manage children, view progress, control settings
+- **Offline-first** — Full functionality without internet; sync when connected
 
-- TensorFlow Lite (.tflite)
-- ONNX (.onnx)
-- Distance-based (no model required - MVP option)
+### 3. Admin dashboard setup
 
-### Model Requirements
+```bash
+cd admin-dashboard
+npm install
+npm run dev
+```
 
-- Input: Normalized stroke coordinates
-- Output: Similarity score and correctness metrics
-- Size: < 10MB recommended
-- Latency: < 500ms inference time
+The dashboard runs at `http://localhost:5173` and connects directly to Supabase. It provides:
+- User and parent account management
+- Child profile overview
+- Progress analytics with charts
+- Practice session data
 
-### Model Recommendations
-
-**See [ML Model Recommendations Guide](docs/architecture/ML_MODEL_RECOMMENDATIONS.md) for detailed suggestions.**
-
-**Quick Start Options:**
-1. **Distance-based approach** (no model) - Fastest to implement, good for MVP
-2. **Lightweight CNN** (2-5MB) - Best balance of accuracy and size
-3. **ML Kit Digital Ink** - Easy integration, but needs quality assessment layer
-
-See [ML Model Usage Guide](docs/architecture/MODEL_USAGE.md) for implementation details.
-
-## 📱 Platform Support
+## Platform Support
 
 - Android (API 21+)
 - iOS (iOS 12+)
 
-## 🧪 Development
+## Documentation
 
-### Running Tests
+- [Architecture Overview](docs/architecture/ARCHITECTURE.md)
+- [Database Schema](docs/database/DATABASE_SCHEMA.md)
+- [Supabase Setup](docs/database/SUPABASE_SETUP.md)
+- [Privacy & Child Safety](docs/privacy/PRIVACY.md)
 
-```bash
-cd mobile_app
-flutter test
-```
+## Privacy & Security
 
-### Building for Production
-
-```bash
-# Android
-flutter build apk --release
-
-# iOS
-flutter build ios --release
-```
-
-## 🤝 Contributing
-
-This is a private project. For contributions, please follow:
-- Clean code principles
-- Feature-based architecture
-- Privacy-first approach
-- Child safety considerations
-
-## 📄 License
-
-[Specify your license here]
-
-## 🙏 Acknowledgments
-
-- Flutter team
-- TensorFlow Lite / ONNX Runtime communities
-- Open-source handwriting recognition models
-
-## 📞 Support
-
-For issues or questions, please refer to the documentation or contact the development team.
-
----
-
-**Note**: This project uses pretrained ML models only. No custom training or model retraining is performed. All ML inference happens on-device for privacy and offline functionality.
+- Handwriting stroke data never leaves the device
+- Only progress metadata (scores, XP, timestamps) syncs to the cloud
+- All child data is managed through parent accounts — no PII collected from children
+- COPPA-compliant by design
+- Supabase RLS ensures parents can only access their own children's data

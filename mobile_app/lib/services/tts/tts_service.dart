@@ -66,6 +66,14 @@ class TtsService {
   // ── Speak ─────────────────────────────────────────────────────────────────
 
   Future<void> speak(String text) async {
+    debugPrint('[TTS-Typecast] speak() called with: "${text.length > 60 ? "${text.substring(0, 60)}…" : text}"');
+    debugPrint('[TTS-Typecast] API key configured: ${_apiKey.isNotEmpty}');
+
+    if (_apiKey.isEmpty) {
+      debugPrint('[TTS-Typecast] ERROR: API key is empty!');
+      return;
+    }
+
     try {
       await _player.stop();
 

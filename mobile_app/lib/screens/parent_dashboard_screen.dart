@@ -8,6 +8,7 @@ import '../features/parent_controls/screens/create_child_account_screen.dart';
 import '../features/parent_controls/screens/parent_login_screen.dart';
 import '../models/child_profile.dart';
 import '../services/children/children_service.dart';
+import '../services/gamification/gamification_service.dart';
 import '../services/progress/progress_service.dart';
 
 /// Model for game progress data
@@ -46,7 +47,7 @@ class ParentDashboardScreen extends StatefulWidget {
   State<ParentDashboardScreen> createState() => _ParentDashboardScreenState();
 }
 
-class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
+class _ParentDashboardScreenState extends State<ParentDashboardScreen> with WidgetsBindingObserver {
   final _childrenService = ChildrenService();
   final _progressService = ProgressService();
 
@@ -58,7 +59,26 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Reload progress when app comes back to foreground
+    if (state == AppLifecycleState.resumed) {
+      final appState = context.read<AppState>();
+      if (appState.selectedChild != null) {
+        _loadProgressForChild(appState.selectedChild!);
+      }
+    }
   }
 
   Future<void> _loadData() async {
@@ -77,10 +97,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
     // Load progress for selected child
     if (appState.selectedChild != null) {
+      final gamService = context.read<GamificationService>();
+      gamService.setAccessToken(appState.accessToken);
+      await gamService.setChildId(appState.selectedChild!.id);
       _loadProgressForChild(appState.selectedChild!);
     } else if (children.isNotEmpty) {
       // Select first child by default
       appState.selectChild(children.first);
+      final gamService = context.read<GamificationService>();
+      gamService.setAccessToken(appState.accessToken);
+      await gamService.setChildId(children.first.id);
       _loadProgressForChild(children.first);
     }
   }
@@ -145,13 +171,20 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     }
   }
 
-  void _handleStartLearning() {
-    Navigator.push(
+  Future<void> _handleStartLearning() async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const CharacterSelectionScreen(),
       ),
     );
+
+    // Reload progress when returning from practice
+    if (!mounted) return;
+    final appState = context.read<AppState>();
+    if (appState.selectedChild != null) {
+      _loadProgressForChild(appState.selectedChild!);
+    }
   }
 
   @override
@@ -242,8 +275,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               children: _children.map((child) {
                 final isSelected = selectedChild?.id == child.id;
                 return GestureDetector(
-                  onTap: () {
+                  onTap: () async {
                     appState.selectChild(child);
+                    final gamService = context.read<GamificationService>();
+                    gamService.setAccessToken(appState.accessToken);
+                    await gamService.setChildId(child.id);
                     _loadProgressForChild(child);
                   },
                   child: Container(

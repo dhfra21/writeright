@@ -120,8 +120,9 @@ Tracks overall game progress for each child (one-to-one relationship).
 **Key Features:**
 - Unique constraint on `child_id`
 - Automatically updated by triggers after practice sessions
-- Level calculated as: `FLOOR(total_xp / 100) + 1`
+- Level calculated from XP thresholds: `[0, 100, 250, 450, 700, 1000, 1400, 1900, 2500, 3200]`
 - Streak tracking with automatic reset logic
+- `badges` column has a GIN index for containment queries
 
 **Gamification Fields:**
 - `total_xp`: Cumulative experience points
@@ -328,33 +329,41 @@ ORDER BY practice_date DESC;
 
 The schema is implemented through the following migration files (run in order):
 
-1. [001_accounts_table.sql](file:///c:/Users/dhiaf/OneDrive/Desktop/ISS%20PROJECT/backend/supabase/migrations/001_accounts_table.sql) - Parent accounts
-2. [002_children_table.sql](file:///c:/Users/dhiaf/OneDrive/Desktop/ISS%20PROJECT/backend/supabase/migrations/002_children_table.sql) - Child profiles
-3. [003_game_progress_table.sql](file:///c:/Users/dhiaf/OneDrive/Desktop/ISS%20PROJECT/backend/supabase/migrations/003_game_progress_table.sql) - Game progress tracking
-4. [004_practice_sessions_table.sql](file:///c:/Users/dhiaf/OneDrive/Desktop/ISS%20PROJECT/backend/supabase/migrations/004_practice_sessions_table.sql) - Practice session records
-5. [005_character_mastery_table.sql](file:///c:/Users/dhiaf/OneDrive/Desktop/ISS%20PROJECT/backend/supabase/migrations/005_character_mastery_table.sql) - Character mastery tracking
-6. [006_rls_policies.sql](file:///c:/Users/dhiaf/OneDrive/Desktop/ISS%20PROJECT/backend/supabase/migrations/006_rls_policies.sql) - Security policies
-7. [007_functions_and_triggers.sql](file:///c:/Users/dhiaf/OneDrive/Desktop/ISS%20PROJECT/backend/supabase/migrations/007_functions_and_triggers.sql) - Automated functions
+1. [001_accounts_table.sql](../../backend/supabase/migrations/001_accounts_table.sql) - Parent accounts
+2. [002_children_table.sql](../../backend/supabase/migrations/002_children_table.sql) - Child profiles
+3. [003_game_progress_table.sql](../../backend/supabase/migrations/003_game_progress_table.sql) - Game progress tracking
+4. [004_practice_sessions_table.sql](../../backend/supabase/migrations/004_practice_sessions_table.sql) - Practice session records
+5. [005_character_mastery_table.sql](../../backend/supabase/migrations/005_character_mastery_table.sql) - Character mastery tracking
+6. [006_rls_policies.sql](../../backend/supabase/migrations/006_rls_policies.sql) - Security policies
+7. [007_functions_and_triggers.sql](../../backend/supabase/migrations/007_functions_and_triggers.sql) - Automated functions
+8. [008_performance_and_correctness_fixes.sql](../../backend/supabase/migrations/008_performance_and_correctness_fixes.sql) - RLS perf, CHECK fix, indexes
 
 ## Performance Considerations
 
 ### Indexes
 
 The schema includes indexes on:
-- `accounts.email` - Fast email lookups
-- `children.account_id` - Fast parent-child queries
-- `game_progress.child_id` - Fast progress lookups
-- `practice_sessions.child_id` - Fast session queries
-- `practice_sessions.session_date` - Fast date-range queries
-- `character_mastery.child_id` - Fast mastery queries
+- `accounts.email` — Fast email lookups
+- `children.account_id` — Fast parent-child queries
+- `game_progress.child_id` — Fast progress lookups
+- `game_progress.badges` (GIN) — JSONB containment queries on badges
+- `practice_sessions.child_id` — Fast session queries
+- `practice_sessions.(child_id, session_date DESC)` — Composite for "sessions per child by date"
+- `practice_sessions.(child_id, character_type, character_value)` — Character session history
+- `character_mastery.child_id` — Fast mastery queries
+- `character_mastery.(child_id, mastery_level)` — Filter by mastery level per child
+
+### RLS Performance
+
+All RLS policies wrap `auth.uid()` in `(SELECT auth.uid())` so the function is evaluated once per query, not once per row scanned. Child-ownership checks use a single subquery on `children` rather than a JOIN to `accounts`.
 
 ### Query Optimization
 
 - Use prepared statements for repeated queries
 - Limit result sets with pagination
-- Use indexes for filtering and sorting
+- Use the composite `(child_id, session_date DESC)` index for recent-sessions queries
 - Avoid SELECT * in production code
 
 ## Next Steps
 
-See [SUPABASE_SETUP.md](file:///c:/Users/dhiaf/OneDrive/Desktop/ISS%20PROJECT/docs/database/SUPABASE_SETUP.md) for setup instructions.
+See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for setup instructions.

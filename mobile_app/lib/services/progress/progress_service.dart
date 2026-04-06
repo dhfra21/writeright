@@ -51,7 +51,7 @@ class ProgressService {
   ) async {
     try {
       final resp = await http.get(
-        Uri.parse('$_apiBase/progress/$childId/mastery'),
+        Uri.parse('$_apiBase/progress/$childId/character-mastery'),
         headers: {
           'Authorization': 'Bearer $accessToken',
           'Content-Type': 'application/json',

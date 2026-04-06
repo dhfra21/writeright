@@ -3,148 +3,159 @@
 ```
 ISS PROJECT/
 │
-├── 📱 mobile_app/                          # Flutter Mobile Application
+├── mobile_app/                              # Flutter Mobile Application
+│   ├── .env                                 # API keys & URLs (not committed)
+│   ├── run_dev.sh                           # Launch script (loads .env → --dart-define)
+│   ├── pubspec.yaml                         # Flutter dependencies
+│   │
 │   ├── lib/
-│   │   ├── main.dart                       # App entry point
+│   │   ├── main.dart                        # App entry point
 │   │   │
-│   │   ├── core/                           # Core utilities & shared code
+│   │   ├── core/                            # Shared utilities
 │   │   │   ├── constants/
-│   │   │   │   ├── app_constants.dart      # App-wide constants
-│   │   │   │   └── route_names.dart        # Route name constants
+│   │   │   │   ├── app_constants.dart
+│   │   │   │   └── route_names.dart
 │   │   │   ├── theme/
-│   │   │   │   └── app_theme.dart          # Theme configuration
+│   │   │   │   └── app_theme.dart
 │   │   │   └── utils/
-│   │   │       └── validators.dart         # Input validators
+│   │   │       └── validators.dart
 │   │   │
-│   │   ├── features/                       # Feature-based modules
-│   │   │   ├── handwriting_practice/       # Handwriting practice feature
+│   │   ├── features/                        # Feature modules
+│   │   │   ├── handwriting_practice/
 │   │   │   │   ├── screens/
 │   │   │   │   │   └── practice_screen.dart
 │   │   │   │   └── widgets/
 │   │   │   │       ├── drawing_canvas.dart
 │   │   │   │       └── character_template.dart
 │   │   │   │
-│   │   │   ├── gamification/               # Gamification feature
+│   │   │   ├── gamification/
 │   │   │   │   ├── screens/
 │   │   │   │   │   └── achievements_screen.dart
 │   │   │   │   └── widgets/
 │   │   │   │       ├── xp_bar.dart
 │   │   │   │       └── badge_display.dart
 │   │   │   │
-│   │   │   ├── progress_tracking/          # Progress tracking feature
+│   │   │   ├── progress_tracking/
 │   │   │   │   └── screens/
 │   │   │   │       └── progress_screen.dart
 │   │   │   │
-│   │   │   └── parent_controls/            # Parent controls feature
+│   │   │   └── parent_controls/
 │   │   │       └── screens/
 │   │   │           └── settings_screen.dart
 │   │   │
-│   │   ├── services/                       # Business logic services
-│   │   │   ├── ml_inference/               # ML Inference layer
-│   │   │   │   ├── ml_inference_service.dart    # Abstract interface
-│   │   │   │   ├── tflite_service.dart         # TensorFlow Lite impl
-│   │   │   │   └── onnx_service.dart           # ONNX Runtime impl
+│   │   ├── services/                        # Business logic
+│   │   │   ├── ml_inference/
+│   │   │   │   ├── ml_inference_service.dart     # Abstract interface
+│   │   │   │   ├── distance_based_service.dart   # On-device DTW (default)
+│   │   │   │   └── groq_vision_service.dart      # Groq Vision AI (cloud)
 │   │   │   │
-│   │   │   ├── storage/                     # Storage services
-│   │   │   │   ├── local_storage_service.dart
-│   │   │   │   └── cloud_sync_service.dart
+│   │   │   ├── auth/
+│   │   │   │   └── auth_service.dart             # Supabase Auth REST
 │   │   │   │
-│   │   │   └── gamification/               # Gamification logic
-│   │   │       └── gamification_service.dart
+│   │   │   ├── children/
+│   │   │   │   └── children_service.dart         # Child profile CRUD
+│   │   │   │
+│   │   │   ├── gamification/
+│   │   │   │   └── gamification_service.dart     # XP, levels, badges
+│   │   │   │
+│   │   │   ├── progress/
+│   │   │   │   └── progress_service.dart         # Session sync
+│   │   │   │
+│   │   │   ├── storage/
+│   │   │   │   └── local_storage_service.dart    # SQLite + SharedPrefs
+│   │   │   │
+│   │   │   └── tts/
+│   │   │       └── tts_service.dart              # Typecast cloud TTS
 │   │   │
-│   │   ├── models/                         # Data models
-│   │   │   ├── user_progress.dart
+│   │   ├── models/
+│   │   │   ├── badge.dart
 │   │   │   ├── handwriting_result.dart
-│   │   │   └── badge.dart
+│   │   │   └── user_progress.dart
 │   │   │
-│   │   ├── widgets/                        # Reusable UI components
+│   │   ├── widgets/
 │   │   │   └── common/
 │   │   │       ├── app_button.dart
 │   │   │       └── app_card.dart
 │   │   │
-│   │   └── screens/                        # App-level screens
+│   │   └── screens/
 │   │       ├── home_screen.dart
-│   │       └── onboarding_screen.dart
+│   │       ├── onboarding_screen.dart
+│   │       └── parent_dashboard_screen.dart
 │   │
-│   ├── assets/                             # App assets
-│   │   ├── images/                         # Images & icons
-│   │   ├── animations/                     # Lottie/animations
-│   │   ├── sounds/                         # Sound effects
-│   │   └── fonts/                          # Custom fonts
+│   ├── assets/
+│   │   ├── images/
+│   │   ├── animations/
+│   │   ├── sounds/
+│   │   └── fonts/
 │   │
-│   ├── pubspec.yaml                        # Flutter dependencies
-│   └── .gitignore                          # Git ignore rules
+│   └── android/                             # Android platform config
 │
-├── 🤖 ml_models/                          # Pretrained ML Models
-│   ├── pretrained/                         # Model files (.tflite, .onnx)
-│   │   └── .gitkeep
-│   ├── templates/                          # Reference templates
-│   │   └── .gitkeep
-│   └── README.md                           # Model documentation
+├── backend/                                 # Express.js REST API
+│   ├── .env                                 # Server config & secrets (not committed)
+│   ├── package.json
+│   └── src/
+│       ├── server.js                        # Entry point
+│       ├── config/
+│       │   ├── index.js                     # Config loader (dotenv)
+│       │   └── supabase.js                  # Supabase client
+│       ├── controllers/
+│       │   ├── authController.js
+│       │   ├── childrenController.js
+│       │   ├── progressController.js
+│       │   └── gamificationController.js
+│       ├── middleware/
+│       │   ├── auth.js                      # JWT verification
+│       │   └── errorHandler.js
+│       ├── routes/
+│       │   ├── auth.js
+│       │   ├── children.js
+│       │   ├── progress.js
+│       │   └── gamification.js
+│       └── supabase/
+│           └── migrations/                  # SQL migration files (001–007)
 │
-├── 🌐 backend/                             # Optional Backend (No ML)
-│   ├── api/                                # API endpoints
-│   │   └── .gitkeep
-│   ├── config/                             # Configuration
-│   │   └── .gitkeep
-│   └── README.md                           # Backend documentation
+├── admin-dashboard/                         # React Admin Panel
+│   ├── .env                                 # Supabase keys (not committed)
+│   ├── package.json
+│   └── src/
+│       ├── main.jsx
+│       ├── App.jsx
+│       ├── pages/
+│       │   ├── Login.jsx
+│       │   ├── Dashboard.jsx
+│       │   ├── Users.jsx
+│       │   ├── Children.jsx
+│       │   └── Analytics.jsx
+│       ├── components/
+│       │   ├── Sidebar.jsx
+│       │   ├── StatCard.jsx
+│       │   └── ui/                          # shadcn/ui components
+│       ├── contexts/
+│       │   └── AuthContext.jsx
+│       └── lib/
+│           ├── supabase.js
+│           ├── api.js
+│           └── utils.js
 │
-├── 📚 docs/                                # Documentation
-│   ├── architecture/
-│   │   ├── ARCHITECTURE.md                 # Architecture overview
-│   │   ├── MODEL_USAGE.md                  # ML model usage guide
-│   │   ├── SETUP.md                        # Setup instructions
-│   │   └── FOLDER_STRUCTURE.md             # This file
-│   └── privacy/
-│       └── PRIVACY.md                      # Privacy & safety docs
-│
-├── 🔧 scripts/                             # Utility scripts
-│   ├── setup.sh                            # Linux/Mac setup
-│   └── setup.ps1                           # Windows setup
-│
-├── README.md                               # Project README
-└── .gitignore                              # Root git ignore
+└── docs/                                    # Documentation
+    ├── architecture/
+    │   ├── ARCHITECTURE.md
+    │   ├── FOLDER_STRUCTURE.md              # This file
+    │   ├── MODEL_USAGE.md
+    │   └── SETUP.md
+    ├── database/
+    │   ├── DATABASE_SCHEMA.md
+    │   └── SUPABASE_SETUP.md
+    ├── privacy/
+    │   └── PRIVACY.md
+    └── use_case_diagram.puml
 ```
-
-## Folder Descriptions
-
-### mobile_app/
-The Flutter mobile application. Organized with:
-- **Feature-based architecture**: Each feature is self-contained
-- **Clear separation**: UI, business logic, and data models are separated
-- **Scalable structure**: Easy to add new features
-
-### ml_models/
-Contains pretrained ML models and reference templates:
-- **pretrained/**: Model files for on-device inference
-- **templates/**: Reference images/templates for characters
-
-### backend/
-Optional backend service (no ML):
-- **api/**: REST/GraphQL endpoints
-- **config/**: Environment and configuration files
-- Used only for progress sync and app configuration
-
-### docs/
-Comprehensive documentation:
-- Architecture decisions
-- Privacy and safety policies
-- Setup and usage guides
-
-### scripts/
-Utility scripts for project setup and maintenance
 
 ## Key Design Decisions
 
-1. **Monorepo Structure**: All related code in one repository
-2. **Feature-Based**: Mobile app organized by features, not layers
-3. **Service Abstraction**: ML inference abstracted behind interface
-4. **Offline-First**: Local storage prioritized
-5. **Privacy-First**: No handwriting data in backend
-
-## Scalability Notes
-
-- **Adding Features**: Create new folder in `lib/features/`
-- **Adding ML Models**: Place in `ml_models/pretrained/`
-- **Backend Expansion**: Add endpoints in `backend/api/`
-- **New Platforms**: Flutter supports web/desktop if needed
+1. **Monorepo** — mobile, backend, and admin in one repository
+2. **Feature-based mobile architecture** — each feature is self-contained
+3. **ML abstraction** — `MLInferenceService` interface allows swapping inference engines without touching consumers
+4. **Offline-first** — local SQLite storage with optional cloud sync
+5. **Privacy-first** — no handwriting data leaves the device; only scores and metadata sync
+6. **`--dart-define` for secrets** — API keys injected at build time, never hardcoded

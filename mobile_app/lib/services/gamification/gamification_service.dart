@@ -1,9 +1,16 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class GamificationService extends ChangeNotifier {
+  static const _apiBase = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:3000/api/v1',
+  );
+
   String _childId = 'default';
+  String? _accessToken;
   int _xp = 0;
   int _level = 1;
   int _selectedBuddyIndex = 0;
@@ -58,20 +65,43 @@ class GamificationService extends ChangeNotifier {
 
   // ── Public methods ─────────────────────────────────────────────────────────
 
+  /// Set the current child ID and reload their progress
+  Future<void> setChildId(String childId) async {
+    if (_childId == childId) return; // Already loaded
+
+    _childId = childId;
+
+    // Clear current state
+    _xp = 0;
+    _level = 1;
+    _selectedBuddyIndex = 0;
+    _starsPerCharacter.clear();
+    _unlockedBadges.clear();
+    _justLeveledUp = false;
+    _justUnlockedBadge = null;
+
+    // Load progress for this child
+    await loadProgress();
+  }
+
   Future<void> loadProgress() async {
     final prefs = await SharedPreferences.getInstance();
-    _xp = prefs.getInt('gam_xp') ?? 0;
-    _selectedBuddyIndex = prefs.getInt('gam_buddy') ?? 0;
+    final prefix = 'child_${_childId}_';
 
-    final starsJson = prefs.getString('gam_stars');
+    _xp = prefs.getInt('${prefix}gam_xp') ?? 0;
+    _selectedBuddyIndex = prefs.getInt('${prefix}gam_buddy') ?? 0;
+
+    final starsJson = prefs.getString('${prefix}gam_stars');
     if (starsJson != null) {
       final decoded = jsonDecode(starsJson) as Map<String, dynamic>;
+      _starsPerCharacter.clear();
       _starsPerCharacter
           .addAll(decoded.map((k, v) => MapEntry(k, (v as num).toInt())));
     }
 
-    final badgesJson = prefs.getString('gam_badges');
+    final badgesJson = prefs.getString('${prefix}gam_badges');
     if (badgesJson != null) {
+      _unlockedBadges.clear();
       _unlockedBadges.addAll((jsonDecode(badgesJson) as List).cast<String>());
     }
 
@@ -85,9 +115,48 @@ class GamificationService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Set the access token for backend API calls
+  void setAccessToken(String? token) {
+    _accessToken = token;
+  }
+
+  /// Sync local progress to backend
+  Future<void> syncToBackend() async {
+    if (_accessToken == null || _childId == 'default') {
+      debugPrint('[GamificationService] Skipping sync: no token or default child');
+      return;
+    }
+
+    try {
+      debugPrint('[GamificationService] Syncing progress to backend for child $_childId');
+      final response = await http.put(
+        Uri.parse('$_apiBase/progress/$_childId'),
+        headers: {
+          'Authorization': 'Bearer $_accessToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'total_xp': _xp,
+          'current_level': _level,
+          'total_stars': totalStars,
+          'streak_days': 0,
+          'badges': _unlockedBadges,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('[GamificationService] Sync successful');
+      } else {
+        debugPrint('[GamificationService] Sync failed: ${response.statusCode} ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('[GamificationService] Sync error: $e');
+    }
+  }
+
   /// Called after Groq evaluates a practice attempt.
   /// [score] is 0.0–1.0 from the vision model.
-  void processPracticeResult(String character, double score) {
+  Future<void> processPracticeResult(String character, double score) async {
     final stars = _starsForScore(score);
     final prevStars = _starsPerCharacter[character] ?? 0;
     if (stars > prevStars) {
@@ -109,11 +178,42 @@ class GamificationService extends ChangeNotifier {
 
     _justUnlockedBadge = null;
     _checkBadges();
-    _persist();
+    await _persist();
+
+    // Record session in backend (triggers DB auto-update of character_mastery + game_progress)
+    await _insertPracticeSession(character, score, xpGain, stars);
+
+    // Sync local totals to backend as well
+    await syncToBackend();
+
     notifyListeners();
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
+
+  Future<void> _insertPracticeSession(
+      String character, double score, int xpEarned, int starsEarned) async {
+    if (_accessToken == null || _childId == 'default') return;
+    try {
+      final characterType = RegExp(r'[0-9]').hasMatch(character) ? 'number' : 'letter';
+      await http.post(
+        Uri.parse('$_apiBase/progress/$_childId/sessions'),
+        headers: {
+          'Authorization': 'Bearer $_accessToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'character_type': characterType,
+          'character_value': character,
+          'score': (score * 100).roundToDouble(), // convert 0-1 to 0-100
+          'xp_earned': xpEarned,
+          'stars_earned': starsEarned,
+        }),
+      );
+    } catch (e) {
+      debugPrint('[GamificationService] insertPracticeSession error: $e');
+    }
+  }
 
   int _starsForScore(double score) {
     if (score >= 0.8) return 3;
@@ -157,10 +257,12 @@ class GamificationService extends ChangeNotifier {
 
   Future<void> _persist() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('gam_xp', _xp);
-    await prefs.setInt('gam_buddy', _selectedBuddyIndex);
-    await prefs.setString('gam_stars', jsonEncode(_starsPerCharacter));
-    await prefs.setString('gam_badges', jsonEncode(_unlockedBadges));
+    final prefix = 'child_${_childId}_';
+
+    await prefs.setInt('${prefix}gam_xp', _xp);
+    await prefs.setInt('${prefix}gam_buddy', _selectedBuddyIndex);
+    await prefs.setString('${prefix}gam_stars', jsonEncode(_starsPerCharacter));
+    await prefs.setString('${prefix}gam_badges', jsonEncode(_unlockedBadges));
   }
 }
 
