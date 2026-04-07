@@ -26,32 +26,41 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
   }
 
   Future<void> _checkAuthState() async {
-    final appState = context.read<AppState>();
+    try {
+      final appState = context.read<AppState>();
 
-    // Wait for AppState to finish initialization
-    while (!appState.initialized) {
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
-
-    if (!mounted) return;
-
-    // If logged in, load children
-    if (appState.isLoggedIn && appState.accessToken != null) {
-      final children = await _childrenService.getChildren(appState.accessToken!);
+      // Wait for AppState to finish initialization (max 5 seconds)
+      int attempts = 0;
+      while (!appState.initialized && attempts < 50) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        attempts++;
+      }
 
       if (!mounted) return;
 
-      // If has children, select the first one by default
-      if (children.isNotEmpty) {
-        appState.selectChild(children.first);
-      }
+      // If logged in, load children
+      if (appState.isLoggedIn && appState.accessToken != null) {
+        final children = await _childrenService.getChildren(appState.accessToken!);
 
-      // Navigate to dashboard
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const ParentDashboardScreen()),
-      );
-    } else {
-      // Not logged in, show login screen
+        if (!mounted) return;
+
+        // If has children, select the first one by default
+        if (children.isNotEmpty) {
+          appState.selectChild(children.first);
+        }
+
+        // Navigate to dashboard
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const ParentDashboardScreen()),
+        );
+      } else {
+        // Not logged in, show login screen
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const ParentLoginScreen()),
+        );
+      }
+    } catch (e) {
+      debugPrint('[AuthGate] _checkAuthState error: $e');
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const ParentLoginScreen()),

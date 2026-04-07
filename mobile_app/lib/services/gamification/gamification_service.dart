@@ -142,7 +142,7 @@ class GamificationService extends ChangeNotifier {
           'streak_days': 0,
           'badges': _unlockedBadges,
         }),
-      );
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         debugPrint('[GamificationService] Sync successful');
@@ -209,7 +209,7 @@ class GamificationService extends ChangeNotifier {
           'xp_earned': xpEarned,
           'stars_earned': starsEarned,
         }),
-      );
+      ).timeout(const Duration(seconds: 15));
     } catch (e) {
       debugPrint('[GamificationService] insertPracticeSession error: $e');
     }

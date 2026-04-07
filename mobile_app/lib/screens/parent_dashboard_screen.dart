@@ -85,29 +85,41 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> with Widg
     setState(() => _isLoading = true);
 
     final appState = context.read<AppState>();
-    if (appState.accessToken == null) return;
+    if (appState.accessToken == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
 
-    final children = await _childrenService.getChildren(appState.accessToken!);
+    try {
+      final children = await _childrenService.getChildren(appState.accessToken!);
 
-    if (!mounted) return;
-    setState(() {
-      _children = children;
-      _isLoading = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        _children = children;
+        _isLoading = false;
+      });
 
-    // Load progress for selected child
-    if (appState.selectedChild != null) {
-      final gamService = context.read<GamificationService>();
-      gamService.setAccessToken(appState.accessToken);
-      await gamService.setChildId(appState.selectedChild!.id);
-      _loadProgressForChild(appState.selectedChild!);
-    } else if (children.isNotEmpty) {
-      // Select first child by default
-      appState.selectChild(children.first);
-      final gamService = context.read<GamificationService>();
-      gamService.setAccessToken(appState.accessToken);
-      await gamService.setChildId(children.first.id);
-      _loadProgressForChild(children.first);
+      // Load progress for selected child
+      if (appState.selectedChild != null) {
+        final gamService = context.read<GamificationService>();
+        gamService.setAccessToken(appState.accessToken);
+        await gamService.setChildId(appState.selectedChild!.id);
+        _loadProgressForChild(appState.selectedChild!);
+      } else if (children.isNotEmpty) {
+        // Select first child by default
+        appState.selectChild(children.first);
+        final gamService = context.read<GamificationService>();
+        gamService.setAccessToken(appState.accessToken);
+        await gamService.setChildId(children.first.id);
+        _loadProgressForChild(children.first);
+      }
+    } catch (e) {
+      debugPrint('[ParentDashboard] _loadData error: $e');
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to load data. Please try again.')),
+      );
     }
   }
 
@@ -115,18 +127,27 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> with Widg
     setState(() => _isLoadingProgress = true);
 
     final appState = context.read<AppState>();
-    if (appState.accessToken == null) return;
+    if (appState.accessToken == null) {
+      setState(() => _isLoadingProgress = false);
+      return;
+    }
 
-    final progress = await _progressService.getGameProgress(
-      appState.accessToken!,
-      child.id,
-    );
+    try {
+      final progress = await _progressService.getGameProgress(
+        appState.accessToken!,
+        child.id,
+      );
 
-    if (!mounted) return;
-    setState(() {
-      _selectedChildProgress = progress;
-      _isLoadingProgress = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        _selectedChildProgress = progress;
+        _isLoadingProgress = false;
+      });
+    } catch (e) {
+      debugPrint('[ParentDashboard] _loadProgressForChild error: $e');
+      if (!mounted) return;
+      setState(() => _isLoadingProgress = false);
+    }
   }
 
   Future<void> _handleAddChild() async {

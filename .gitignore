@@ -36,3 +36,9 @@ backend/node_modules/
 backend/venv/
 backend/.env
 nul
+
+# Claude Code
+.claude/settings.local.json
+.claude/skills/
+.agents/
+skills-lock.json

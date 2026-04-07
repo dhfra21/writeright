@@ -29,12 +29,14 @@ class DrawingCanvas extends StatefulWidget {
 class DrawingCanvasState extends State<DrawingCanvas> {
   final List<List<Offset>> _strokes = [];
   List<Offset> _currentStroke = [];
+  int _paintVersion = 0;
 
   /// Clears all strokes from the canvas.
   void clear() {
     setState(() {
       _strokes.clear();
       _currentStroke = [];
+      _paintVersion++;
     });
   }
 
@@ -50,6 +52,7 @@ class DrawingCanvasState extends State<DrawingCanvas> {
       setState(() {
         _strokes.removeLast();
         _currentStroke = [];
+        _paintVersion++;
       });
       widget.onStrokesChanged?.call(_strokes.map((s) => s.toList()).toList());
     }
@@ -119,11 +122,13 @@ class DrawingCanvasState extends State<DrawingCanvas> {
         setState(() {
           _currentStroke = [details.localPosition];
           _strokes.add(_currentStroke);
+          _paintVersion++;
         });
       },
       onPanUpdate: (details) {
         setState(() {
           _currentStroke.add(details.localPosition);
+          _paintVersion++;
         });
         widget.onStrokesChanged?.call(
           _strokes.map((s) => s.toList()).toList(),
@@ -159,6 +164,7 @@ class DrawingCanvasState extends State<DrawingCanvas> {
               strokes: _strokes,
               strokeColor: widget.strokeColor,
               strokeWidth: widget.strokeWidth,
+              version: _paintVersion,
             ),
           ),
         ),
@@ -171,11 +177,13 @@ class _StrokePainter extends CustomPainter {
   final List<List<Offset>> strokes;
   final Color strokeColor;
   final double strokeWidth;
+  final int version;
 
   _StrokePainter({
     required this.strokes,
     required this.strokeColor,
     required this.strokeWidth,
+    required this.version,
   });
 
   @override
@@ -198,5 +206,8 @@ class _StrokePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _StrokePainter oldDelegate) => true;
+  bool shouldRepaint(covariant _StrokePainter oldDelegate) =>
+      oldDelegate.version != version ||
+      oldDelegate.strokeColor != strokeColor ||
+      oldDelegate.strokeWidth != strokeWidth;
 }

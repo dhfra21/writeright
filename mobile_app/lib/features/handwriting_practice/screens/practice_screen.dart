@@ -35,7 +35,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
   bool _isEvaluating = false;
   bool _hasDrawn = false;
   bool _resultReady = false;
-  bool _lockScroll = false;
+  final _lockScroll = ValueNotifier<bool>(false);
   int _canvasStrokeCount = 0;
   VisionResult? _visionResult;
   bool _showCelebration = false;
@@ -53,6 +53,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
   void dispose() {
     _tts.dispose();
     _scrollController.dispose();
+    _lockScroll.dispose();
     super.dispose();
   }
 
@@ -149,7 +150,17 @@ class _PracticeScreenState extends State<PracticeScreen> {
     } catch (e, stack) {
       debugPrint('[PracticeScreen] Groq Vision call failed: $e');
       debugPrint('[PracticeScreen] Stack: $stack');
-      if (mounted) setState(() => _isEvaluating = false);
+      if (mounted) {
+        setState(() {
+          _isEvaluating = false;
+          _resultReady = false; // allow re-submission after error
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not evaluate handwriting. Please try again.'),
+          ),
+        );
+      }
     }
   }
 
@@ -186,12 +197,16 @@ class _PracticeScreenState extends State<PracticeScreen> {
           CustomPaint(
             painter: BubbleBackgroundPainter(),
             child: SafeArea(
-              child: SingleChildScrollView(
-                controller: _scrollController,
-                physics: _lockScroll
-                    ? const NeverScrollableScrollPhysics()
-                    : const ClampingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _lockScroll,
+                builder: (context, locked, child) => SingleChildScrollView(
+                  controller: _scrollController,
+                  physics: locked
+                      ? const NeverScrollableScrollPhysics()
+                      : const ClampingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  child: child,
+                ),
                 child: Column(
                   children: [
                     // XP/Level strip
@@ -210,12 +225,9 @@ class _PracticeScreenState extends State<PracticeScreen> {
                     // Drawing area: template behind canvas.
                     Listener(
                       behavior: HitTestBehavior.opaque,
-                      onPointerDown: (_) =>
-                          setState(() => _lockScroll = true),
-                      onPointerUp: (_) =>
-                          setState(() => _lockScroll = false),
-                      onPointerCancel: (_) =>
-                          setState(() => _lockScroll = false),
+                      onPointerDown: (_) => _lockScroll.value = true,
+                      onPointerUp: (_) => _lockScroll.value = false,
+                      onPointerCancel: (_) => _lockScroll.value = false,
                       child: SizedBox(
                         width: 280,
                         height: 280,

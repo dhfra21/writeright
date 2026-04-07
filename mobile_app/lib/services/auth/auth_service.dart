@@ -73,10 +73,17 @@ class AuthService {
       debugPrint('[AuthService] signIn HTTP ${resp.statusCode}');
 
       if (resp.statusCode == 200) {
+        final accessToken = body['access_token'] as String?;
+        final refreshToken = body['refresh_token'] as String?;
+        final user = body['user'] as Map<String, dynamic>?;
+        final userId = user?['id'] as String?;
+        if (accessToken == null || refreshToken == null || userId == null) {
+          return AuthResult.fail('Unexpected server response');
+        }
         return AuthResult.ok(
-          accessToken: body['access_token'] as String,
-          refreshToken: body['refresh_token'] as String,
-          userId: (body['user'] as Map<String, dynamic>)['id'] as String,
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          userId: userId,
         );
       }
       final msg = (body['error_description'] ?? body['msg'] ?? body['error'] ?? 'Login failed')
@@ -148,10 +155,17 @@ class AuthService {
 
       final body = jsonDecode(resp.body) as Map<String, dynamic>;
       if (resp.statusCode == 200) {
+        final accessToken = body['access_token'] as String?;
+        final refreshToken = body['refresh_token'] as String?;
+        final user = body['user'] as Map<String, dynamic>?;
+        final userId = user?['id'] as String?;
+        if (accessToken == null || refreshToken == null || userId == null) {
+          return AuthResult.fail('Unexpected server response');
+        }
         return AuthResult.ok(
-          accessToken: body['access_token'] as String,
-          refreshToken: body['refresh_token'] as String,
-          userId: (body['user'] as Map<String, dynamic>)['id'] as String,
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          userId: userId,
         );
       }
       return AuthResult.fail('Session expired. Please sign in again.');
