@@ -40,7 +40,6 @@ nul
 # Claude Code
 CLAUDE.md
 uml-mcp/
-.claude/settings.local.json
-.claude/skills/
+.claude/
 .agents/
 skills-lock.json
