@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:google_sign_in/google_sign_in.dart';
 
 /// Result of a sign-in or registration call.
 class AuthResult {
@@ -46,7 +47,11 @@ class AuthService {
       String.fromEnvironment('SUPABASE_ANON_KEY');
   static const _apiBase = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:3000/api/v1',
+    defaultValue: 'http://10.0.2.2:3000/api/v1', // 10.0.2.2 is the default Android emulator address for localhost
+  );
+
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    serverClientId: '624665855558-dt2tj89bl31eg772f18gfsbmk7hfuk91.apps.googleusercontent.com',
   );
 
   // ── Sign in ────────────────────────────────────────────────────────────────
@@ -73,17 +78,10 @@ class AuthService {
       debugPrint('[AuthService] signIn HTTP ${resp.statusCode}');
 
       if (resp.statusCode == 200) {
-        final accessToken = body['access_token'] as String?;
-        final refreshToken = body['refresh_token'] as String?;
-        final user = body['user'] as Map<String, dynamic>?;
-        final userId = user?['id'] as String?;
-        if (accessToken == null || refreshToken == null || userId == null) {
-          return AuthResult.fail('Unexpected server response');
-        }
         return AuthResult.ok(
-          accessToken: accessToken,
-          refreshToken: refreshToken,
-          userId: userId,
+          accessToken: body['access_token'] as String,
+          refreshToken: body['refresh_token'] as String,
+          userId: (body['user'] as Map<String, dynamic>)['id'] as String,
         );
       }
       final msg = (body['error_description'] ?? body['msg'] ?? body['error'] ?? 'Login failed')
@@ -92,6 +90,60 @@ class AuthService {
     } catch (e) {
       debugPrint('[AuthService] signIn error: $e');
       return AuthResult.fail('Could not connect to server. Check your connection.');
+    }
+  }
+
+  // ── Google Sign in ──────────────────────────────────────────────────────────
+
+  Future<AuthResult> signInWithGoogle() async {
+    if (_supabaseUrl.isEmpty || _supabaseAnonKey.isEmpty) {
+      return AuthResult.fail(
+        'SUPABASE_URL and SUPABASE_ANON_KEY must be provided via --dart-define',
+      );
+    }
+    try {
+      // 1. Force the account picker to show by signing out of the local Google session first
+      try {
+        await _googleSignIn.signOut();
+      } catch (_) {
+        // Ignore errors if we weren't signed in
+      }
+
+      // 2. Now start the sign in process
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return AuthResult.fail('Sign in aborted');
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      
+      final resp = await http.post(
+        Uri.parse('$_supabaseUrl/auth/v1/token?grant_type=id_token'),
+        headers: {
+          'apikey': _supabaseAnonKey,
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'provider': 'google',
+          'id_token': googleAuth.idToken,
+          'access_token': googleAuth.accessToken,
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      final body = jsonDecode(resp.body) as Map<String, dynamic>;
+      debugPrint('[AuthService] googleSignIn HTTP ${resp.statusCode}');
+
+      if (resp.statusCode == 200) {
+        return AuthResult.ok(
+          accessToken: body['access_token'] as String,
+          refreshToken: body['refresh_token'] as String,
+          userId: (body['user'] as Map<String, dynamic>)['id'] as String,
+        );
+      }
+      final msg = (body['error_description'] ?? body['msg'] ?? body['error'] ?? 'Google Login failed')
+          .toString();
+      return AuthResult.fail(msg);
+    } catch (e) {
+      debugPrint('[AuthService] googleSignIn error: $e');
+      return AuthResult.fail('Google Sign-In failed');
     }
   }
 
@@ -155,17 +207,10 @@ class AuthService {
 
       final body = jsonDecode(resp.body) as Map<String, dynamic>;
       if (resp.statusCode == 200) {
-        final accessToken = body['access_token'] as String?;
-        final refreshToken = body['refresh_token'] as String?;
-        final user = body['user'] as Map<String, dynamic>?;
-        final userId = user?['id'] as String?;
-        if (accessToken == null || refreshToken == null || userId == null) {
-          return AuthResult.fail('Unexpected server response');
-        }
         return AuthResult.ok(
-          accessToken: accessToken,
-          refreshToken: refreshToken,
-          userId: userId,
+          accessToken: body['access_token'] as String,
+          refreshToken: body['refresh_token'] as String,
+          userId: (body['user'] as Map<String, dynamic>)['id'] as String,
         );
       }
       return AuthResult.fail('Session expired. Please sign in again.');
