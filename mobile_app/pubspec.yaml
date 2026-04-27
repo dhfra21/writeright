@@ -18,6 +18,8 @@ dependencies:
   # UI
   cupertino_icons: ^1.0.6
   google_fonts: ^6.1.0
+  # Google Sign-In
+  google_sign_in: ^6.2.0
   # Cloud sync & API calls
   http: ^1.1.0
   # Audio

@@ -1,19 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../../core/constants/buddy_data.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/constants/buddy_data.dart';
+import '../../../core/constants/word_data.dart';
 import '../../../services/gamification/gamification_service.dart';
-import 'practice_screen.dart';
-import 'word_selection_screen.dart';
+import 'word_practice_screen.dart';
 
-class CharacterSelectionScreen extends StatelessWidget {
-  const CharacterSelectionScreen({super.key});
-
-  static const List<String> _characters = [
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-    'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-  ];
+class WordSelectionScreen extends StatelessWidget {
+  const WordSelectionScreen({super.key});
 
   static const List<Color> _cardColors = [
     AppTheme.accentPink,
@@ -26,118 +21,25 @@ class CharacterSelectionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final words = WordData.all;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Choose a Letter'),
-        actions: [
-          // Level 2 button — top right of AppBar
-          Consumer<GamificationService>(
-            builder: (context, gam, _) {
-              // Count how many letters have been practiced (stars > 0)
-              final practiced = _characters
-                  .where((c) => (gam.starsPerCharacter[c] ?? 0) > 0)
-                  .length;
-              final unlocked = practiced >= 5; // unlock after 5 letters
-
-              return Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: GestureDetector(
-                  onTap: () {
-                    if (unlocked) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const WordSelectionScreen(),
-                        ),
-                      );
-                    } else {
-                      // Show how many more letters needed
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Practice ${5 - practiced} more letters to unlock Level 2! ⭐',
-                            style: GoogleFonts.nunito(
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                          backgroundColor: AppTheme.primaryPurple,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: unlocked
-                          ? AppTheme.accentGreen
-                          : AppTheme.textMuted.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: unlocked
-                          ? [
-                              BoxShadow(
-                                color: AppTheme.accentGreen
-                                    .withValues(alpha: 0.35),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ]
-                          : [],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          unlocked ? '✏️' : '🔒',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Level 2',
-                          style: GoogleFonts.nunito(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: unlocked
-                                ? Colors.white
-                                : AppTheme.textMuted,
-                          ),
-                        ),
-                        if (unlocked) ...[
-                          const SizedBox(width: 4),
-                          const Icon(
-                            Icons.arrow_forward_rounded,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
+        title: const Text('Choose a Word'),
       ),
       body: CustomPaint(
         painter: BubbleBackgroundPainter(),
         child: SafeArea(
           child: Column(
             children: [
-              // Level / XP bar
+              // Level / XP bar — reused from Level 1
               const Padding(
                 padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
                 child: _LevelBar(),
               ),
               const SizedBox(height: 10),
 
-              // Buddy picker
+              // Buddy picker — identical to Level 1
               const Padding(
                 padding: EdgeInsets.fromLTRB(20, 6, 20, 0),
                 child: _BuddyPicker(),
@@ -145,7 +47,7 @@ class CharacterSelectionScreen extends StatelessWidget {
               const SizedBox(height: 8),
 
               Text(
-                'Which letter do you want to practice?',
+                'Which word do you want to practice?',
                 style: GoogleFonts.nunito(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
@@ -154,30 +56,34 @@ class CharacterSelectionScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
 
-              // A-Z grid
+              // Word grid
               Expanded(
                 child: Consumer<GamificationService>(
                   builder: (context, gam, _) => GridView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 8),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 4,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
                       childAspectRatio: 0.85,
                     ),
-                    itemCount: _characters.length,
+                    itemCount: words.length,
                     itemBuilder: (context, i) {
-                      final char = _characters[i];
-                      final stars = gam.starsPerCharacter[char] ?? 0;
+                      final entry = words[i];
+                      final stars =
+                          gam.starsPerCharacter[entry.word] ?? 0;
                       final color = _cardColors[i % _cardColors.length];
-                      return _LetterCard(
-                        character: char,
+                      return _WordCard(
+                        entry: entry,
                         stars: stars,
                         color: color,
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => PracticeScreen(initialIndex: i),
+                            builder: (_) =>
+                                WordPracticeScreen(initialIndex: i),
                           ),
                         ),
                       );
@@ -193,7 +99,7 @@ class CharacterSelectionScreen extends StatelessWidget {
   }
 }
 
-// ─── Level Bar ────────────────────────────────────────────────────────────────
+// ─── Level Bar (identical to Level 1) ────────────────────────────────────────
 
 class _LevelBar extends StatelessWidget {
   const _LevelBar();
@@ -202,7 +108,8 @@ class _LevelBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<GamificationService>(
       builder: (context, gam, _) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: AppTheme.cardWhite,
           borderRadius: BorderRadius.circular(20),
@@ -226,7 +133,7 @@ class _LevelBar extends StatelessWidget {
               ),
               child: Center(
                 child: Text(
-                  '${gam.level}',
+                  '2',
                   style: GoogleFonts.nunito(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
@@ -246,7 +153,7 @@ class _LevelBar extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Level ${gam.level}',
+                        'Level 2 — Simple Words',
                         style: GoogleFonts.nunito(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
@@ -269,8 +176,10 @@ class _LevelBar extends StatelessWidget {
                     child: LinearProgressIndicator(
                       value: gam.levelProgress,
                       minHeight: 8,
-                      backgroundColor: AppTheme.primaryPurple.withValues(alpha: 0.15),
-                      valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryPurple),
+                      backgroundColor:
+                          AppTheme.primaryPurple.withValues(alpha: 0.15),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                          AppTheme.primaryPurple),
                     ),
                   ),
                 ],
@@ -281,7 +190,7 @@ class _LevelBar extends StatelessWidget {
             // Star count
             Column(
               children: [
-                const Text('\u2B50', style: TextStyle(fontSize: 22)),
+                const Text('⭐', style: TextStyle(fontSize: 22)),
                 Text(
                   '${gam.totalStars}',
                   style: GoogleFonts.nunito(
@@ -299,7 +208,7 @@ class _LevelBar extends StatelessWidget {
   }
 }
 
-// ─── Buddy Picker ─────────────────────────────────────────────────────────────
+// ─── Buddy Picker (identical to Level 1) ─────────────────────────────────────
 
 class _BuddyPicker extends StatelessWidget {
   const _BuddyPicker();
@@ -325,7 +234,8 @@ class _BuddyPicker extends StatelessWidget {
               final buddy = BuddyData.all[i];
               final selected = gam.selectedBuddyIndex == i;
               return GestureDetector(
-                onTap: () => context.read<GamificationService>().selectBuddy(i),
+                onTap: () =>
+                    context.read<GamificationService>().selectBuddy(i),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 220),
                   width: 48,
@@ -345,7 +255,8 @@ class _BuddyPicker extends StatelessWidget {
                   child: Center(
                     child: Text(
                       buddy.emoji,
-                      style: TextStyle(fontSize: selected ? 26 : 22),
+                      style:
+                          TextStyle(fontSize: selected ? 26 : 22),
                     ),
                   ),
                 ),
@@ -358,16 +269,16 @@ class _BuddyPicker extends StatelessWidget {
   }
 }
 
-// ─── Letter Card ──────────────────────────────────────────────────────────────
+// ─── Word Card ────────────────────────────────────────────────────────────────
 
-class _LetterCard extends StatelessWidget {
-  final String character;
+class _WordCard extends StatelessWidget {
+  final WordEntry entry;
   final int stars;
   final Color color;
   final VoidCallback onTap;
 
-  const _LetterCard({
-    required this.character,
+  const _WordCard({
+    required this.entry,
     required this.stars,
     required this.color,
     required this.onTap,
@@ -389,7 +300,8 @@ class _LetterCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: color.withValues(alpha: practiced ? 0.28 : 0.10),
+              color:
+                  color.withValues(alpha: practiced ? 0.28 : 0.10),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -398,24 +310,36 @@ class _LetterCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // Emoji picture clue
             Text(
-              character,
+              entry.emoji,
+              style: const TextStyle(fontSize: 24),
+            ),
+            const SizedBox(height: 4),
+            // Word text
+            Text(
+              entry.word,
               style: GoogleFonts.nunito(
-                fontSize: 32,
+                fontSize: entry.word.length <= 3 ? 22 : 16,
                 fontWeight: FontWeight.w900,
                 color: practiced ? Colors.white : color,
               ),
             ),
             const SizedBox(height: 4),
+            // Star rating
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(
                 3,
                 (i) => Icon(
-                  i < stars ? Icons.star_rounded : Icons.star_outline_rounded,
-                  size: 14,
+                  i < stars
+                      ? Icons.star_rounded
+                      : Icons.star_outline_rounded,
+                  size: 12,
                   color: i < stars
-                      ? (practiced ? Colors.white : AppTheme.accentYellow)
+                      ? (practiced
+                          ? Colors.white
+                          : AppTheme.accentYellow)
                       : (practiced
                           ? Colors.white.withValues(alpha: 0.35)
                           : color.withValues(alpha: 0.25)),

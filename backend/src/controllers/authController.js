@@ -36,18 +36,21 @@ export async function register(req, res, next) {
       return res.status(400).json({ error: authError.message });
     }
 
-    // 2. Create accounts row with same id as auth user
+    // 2. Create accounts row (upsert in case a DB trigger already inserted it)
     const { error: accountError } = await supabaseAdmin
       .from('accounts')
-      .insert({
+      .upsert({
         id: authData.user.id,
         email,
         parent_first_name: firstName,
         parent_last_name: lastName,
-      });
+      }, { onConflict: 'id' });
 
     if (accountError) {
-      // Roll back: remove the auth user so the email isn't permanently blocked
+      console.error('[register] accounts insert error:', accountError);
+      if (accountError.code === '23505') {
+        return res.status(409).json({ error: 'An account with this email already exists' });
+      }
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
       return res.status(500).json({ error: 'Failed to create account profile' });
     }

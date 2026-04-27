@@ -51,7 +51,7 @@ class AuthService {
   );
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    serverClientId: '624665855558-dt2tj89bl31eg772f18gfsbmk7hfuk91.apps.googleusercontent.com',
+    serverClientId: '75334871229-qb9n95nvpgslgqkchag0h4qj146j18sg.apps.googleusercontent.com',
   );
 
   // ── Sign in ────────────────────────────────────────────────────────────────

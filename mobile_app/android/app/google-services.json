@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "75334871229",
+    "project_id": "gen-lang-client-0258559346",
+    "storage_bucket": "gen-lang-client-0258559346.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:75334871229:android:36acd2da1109fb03b52fd4",
+        "android_client_info": {
+          "package_name": "com.writeright.handwriting_learning_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "75334871229-b1fnckk0o0oll59d6qlbgj3vsqjj4l1g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.writeright.handwriting_learning_app",
+            "certificate_hash": "ee23ffb6c751f2d5a1b89db37d9d099763ca93d4"
+          }
+        },
+        {
+          "client_id": "75334871229-qb9n95nvpgslgqkchag0h4qj146j18sg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC8KyOOR0sAP6rKDFykRrNxuU2k2q0HtKs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "75334871229-qb9n95nvpgslgqkchag0h4qj146j18sg.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
