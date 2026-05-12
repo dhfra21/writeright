@@ -30,6 +30,7 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         routes: {
           '/settings': (_) => const SettingsScreen(),
+
         },
       ),
     );

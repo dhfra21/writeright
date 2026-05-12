@@ -4,28 +4,27 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/buddy_data.dart';
 import '../../../core/constants/word_data.dart';
+import '../../../core/state/app_settings.dart';
 import '../../../services/gamification/gamification_service.dart';
 import '../../../services/ml_inference/groq_vision_service.dart';
 import '../../../services/tts/tts_service.dart';
 import '../widgets/drawing_canvas.dart';
-import '../../../core/state/app_settings.dart';
 
-class WordPracticeScreen extends StatefulWidget {
+class SentencePracticeScreen extends StatefulWidget {
   final int initialIndex;
 
-  const WordPracticeScreen({super.key, this.initialIndex = 0});
+  const SentencePracticeScreen({super.key, this.initialIndex = 0});
 
   @override
-  State<WordPracticeScreen> createState() => _WordPracticeScreenState();
+  State<SentencePracticeScreen> createState() => _SentencePracticeScreenState();
 }
 
-class _WordPracticeScreenState extends State<WordPracticeScreen> {
+class _SentencePracticeScreenState extends State<SentencePracticeScreen> {
   late int _currentIndex;
 
-  WordEntry get _currentWord => WordData.all[_currentIndex];
+  WordEntry get _current => WordData.all[_currentIndex];
 
-  final GlobalKey<DrawingCanvasState> _canvasKey =
-      GlobalKey<DrawingCanvasState>();
+  final GlobalKey<DrawingCanvasState> _canvasKey = GlobalKey<DrawingCanvasState>();
   final TtsService _tts = TtsService();
   final ScrollController _scrollController = ScrollController();
   late final GroqVisionService _groqService;
@@ -33,7 +32,7 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
   bool _isEvaluating = false;
   bool _hasDrawn = false;
   bool _resultReady = false;
-  bool _lockScroll = false;
+  final _lockScroll = ValueNotifier<bool>(false);
   int _canvasStrokeCount = 0;
   VisionResult? _visionResult;
   bool _showCelebration = false;
@@ -46,11 +45,10 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
     _groqService = GroqVisionService(
       apiKey: const String.fromEnvironment('GROQ_API_KEY'),
     );
-    // Speak the word aloud when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final settings = context.read<AppSettings>();
       if (settings.voiceFeedbackEnabled) {
-        _tts.speak(_currentWord.word);
+        _tts.speak(_current.sentence.replaceAll('___', _current.word));
       }
     });
   }
@@ -59,6 +57,7 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
   void dispose() {
     _tts.dispose();
     _scrollController.dispose();
+    _lockScroll.dispose();
     super.dispose();
   }
 
@@ -73,7 +72,7 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
     _canvasStrokeCount = 0;
   }
 
-  void _nextWord() {
+  void _nextSentence() {
     if (_currentIndex < WordData.all.length - 1) {
       setState(() {
         _currentIndex++;
@@ -82,12 +81,12 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
       _canvasKey.currentState?.clear();
       final settings = context.read<AppSettings>();
       if (settings.voiceFeedbackEnabled) {
-        _tts.speak(_currentWord.word);
-      };
+        _tts.speak(_current.sentence.replaceAll('___', _current.word));
+      }
     }
   }
 
-  void _previousWord() {
+  void _previousSentence() {
     if (_currentIndex > 0) {
       setState(() {
         _currentIndex--;
@@ -96,8 +95,8 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
       _canvasKey.currentState?.clear();
       final settings = context.read<AppSettings>();
       if (settings.voiceFeedbackEnabled) {
-        _tts.speak(_currentWord.word);
-      };
+        _tts.speak(_current.sentence.replaceAll('___', _current.word));
+      }
     }
   }
 
@@ -124,7 +123,6 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
 
   void _toggleHint() {
     setState(() => _showHint = !_showHint);
-    // Auto-hide hint after 3 seconds
     if (_showHint) {
       Future.delayed(const Duration(seconds: 3), () {
         if (mounted) setState(() => _showHint = false);
@@ -146,9 +144,9 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
     try {
       final imageBytes = await canvasState.exportAsImage();
       if (imageBytes != null && mounted) {
-        final visionResult = await _groqService.evaluateFromImage(
-          // Pass word context so AI knows what to evaluate
-          character: _currentWord.word,
+        final visionResult = await _groqService.evaluateFromImageSentence(
+          word: _current.word,
+          sentence: _current.sentence,
           imageBytes: imageBytes,
         );
 
@@ -156,7 +154,7 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
           final score = visionResult.score.similarity;
           final stars = _starsForScore(score);
 
-          gamification.processPracticeResult(_currentWord.word, score);
+          gamification.processPracticeResult('s3_${_current.word}', score);
 
           setState(() {
             _visionResult = visionResult;
@@ -164,7 +162,6 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
             if (stars >= 2) _showCelebration = true;
           });
 
-          // Speak encouragement + word again
           final settings = context.read<AppSettings>();
           if (settings.voiceFeedbackEnabled) {
             _tts.speak(
@@ -174,9 +171,19 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
         }
       }
     } catch (e, stack) {
-      debugPrint('[WordPracticeScreen] Groq Vision call failed: $e');
-      debugPrint('[WordPracticeScreen] Stack: $stack');
-      if (mounted) setState(() => _isEvaluating = false);
+      debugPrint('[SentencePracticeScreen] Groq call failed: $e');
+      debugPrint('[SentencePracticeScreen] Stack: $stack');
+      if (mounted) {
+        setState(() {
+          _isEvaluating = false;
+          _resultReady = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not evaluate handwriting. Please try again.'),
+          ),
+        );
+      }
     }
   }
 
@@ -191,7 +198,7 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Word: ${_currentWord.word}'),
+        title: const Text('Fill in the Blank'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -213,50 +220,52 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
           CustomPaint(
             painter: BubbleBackgroundPainter(),
             child: SafeArea(
-              child: SingleChildScrollView(
-                controller: _scrollController,
-                physics: _lockScroll
-                    ? const NeverScrollableScrollPhysics()
-                    : const ClampingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 16),
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _lockScroll,
+                builder: (context, locked, child) => SingleChildScrollView(
+                  controller: _scrollController,
+                  physics: locked
+                      ? const NeverScrollableScrollPhysics()
+                      : const ClampingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24, vertical: 16),
+                  child: child,
+                ),
                 child: Column(
                   children: [
-                    // XP strip — identical to Level 1
+                    // XP strip
                     const _XpStrip(),
                     const SizedBox(height: 14),
 
-                    // Word display card with emoji + hint button
-                    _WordDisplayCard(
-                      entry: _currentWord,
+                    // Sentence card
+                    _SentenceCard(
+                      entry: _current,
                       showHint: _showHint,
-                      onHintTap: _toggleHint,
-                      onSpeakTap: () => _tts.speak(_currentWord.word),
+                      onSpeakTap: () => _tts.speak(
+                        _current.sentence.replaceAll('___', _current.word),
+                      ),
                     ),
                     const SizedBox(height: 12),
 
-                    // Buddy + speech bubble — same as Level 1
+                    // Buddy
                     _BuddySection(
-                      word: _currentWord.word,
+                      word: _current.word,
                       isEvaluating: _isEvaluating,
                       visionResult: _visionResult,
                       hasDrawn: _hasDrawn,
                     ),
                     const SizedBox(height: 16),
 
-                    // Drawing canvas — wider for words
+                    // Canvas
                     Listener(
                       behavior: HitTestBehavior.opaque,
-                      onPointerDown: (_) =>
-                          setState(() => _lockScroll = true),
-                      onPointerUp: (_) =>
-                          setState(() => _lockScroll = false),
-                      onPointerCancel: (_) =>
-                          setState(() => _lockScroll = false),
+                      onPointerDown: (_) => _lockScroll.value = true,
+                      onPointerUp: (_) => _lockScroll.value = false,
+                      onPointerCancel: (_) => _lockScroll.value = false,
                       child: LayoutBuilder(
                         builder: (context, constraints) {
-                          // Use available width but fixed height — never infinity
-                          final canvasW = constraints.maxWidth == double.infinity
+                          final canvasW =
+                          constraints.maxWidth == double.infinity
                               ? 360.0
                               : constraints.maxWidth;
                           const canvasH = 180.0;
@@ -266,12 +275,8 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
-                                // Writing guidelines (baseline + midline)
                                 _WritingGuides(
-                                  width: canvasW,
-                                  height: canvasH,
-                                ),
-                                // Drawing canvas — fixed size so exportAsImage works
+                                    width: canvasW, height: canvasH),
                                 DrawingCanvas(
                                   key: _canvasKey,
                                   width: canvasW,
@@ -279,15 +284,15 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
                                   onStrokesChanged: (strokes) {
                                     setState(() {
                                       _canvasStrokeCount = strokes.length;
-                                      if (!_hasDrawn && strokes.isNotEmpty) {
+                                      if (!_hasDrawn &&
+                                          strokes.isNotEmpty) {
                                         _hasDrawn = true;
                                       }
                                     });
                                   },
                                 ),
-                                // Ghost hint overlay
                                 if (_showHint)
-                                  _GhostWordHint(word: _currentWord.word),
+                                  _GhostWordHint(word: _current.word),
                               ],
                             ),
                           );
@@ -296,7 +301,7 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Action buttons — Undo | Clear | Hint | Check!
+                    // Action buttons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -304,10 +309,9 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
                           icon: Icons.undo_rounded,
                           label: 'Undo',
                           color: AppTheme.accentBlue,
-                          onPressed:
-                              _canvasStrokeCount > 0 && !_isEvaluating
-                                  ? _undoStroke
-                                  : null,
+                          onPressed: _canvasStrokeCount > 0 && !_isEvaluating
+                              ? _undoStroke
+                              : null,
                         ),
                         const SizedBox(width: 10),
                         _ActionButton(
@@ -323,8 +327,7 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
                           icon: Icons.lightbulb_rounded,
                           label: 'Hint',
                           color: AppTheme.accentYellow,
-                          onPressed:
-                              !_isEvaluating ? _toggleHint : null,
+                          onPressed: !_isEvaluating ? _toggleHint : null,
                         ),
                         const SizedBox(width: 10),
                         _ActionButton(
@@ -332,8 +335,8 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
                           label: 'Check!',
                           color: AppTheme.accentGreen,
                           onPressed: (_hasDrawn &&
-                                  !_isEvaluating &&
-                                  !_resultReady)
+                              !_isEvaluating &&
+                              !_resultReady)
                               ? _evaluateHandwriting
                               : null,
                           isLoading: _isEvaluating,
@@ -342,7 +345,7 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Feedback panel
+                    // Feedback
                     if (_visionResult != null)
                       _FeedbackPanel(visionResult: _visionResult!),
                     const SizedBox(height: 20),
@@ -352,16 +355,17 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         OutlinedButton.icon(
-                          onPressed:
-                              _currentIndex > 0 ? _previousWord : null,
+                          onPressed: _currentIndex > 0
+                              ? _previousSentence
+                              : null,
                           icon: const Icon(Icons.arrow_back_rounded),
                           label: const Text('Previous'),
                         ),
                         OutlinedButton.icon(
                           onPressed:
-                              _currentIndex < WordData.all.length - 1
-                                  ? _nextWord
-                                  : null,
+                          _currentIndex < WordData.all.length - 1
+                              ? _nextSentence
+                              : null,
                           icon: const Icon(Icons.arrow_forward_rounded),
                           label: const Text('Next'),
                         ),
@@ -374,7 +378,6 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
             ),
           ),
 
-          // Star celebration overlay — identical to Level 1
           if (_showCelebration)
             _StarCelebrationOverlay(
               onComplete: () {
@@ -387,23 +390,26 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
   }
 }
 
-// ─── Word Display Card ────────────────────────────────────────────────────────
+// ─── Sentence Card ────────────────────────────────────────────────────────────
 
-class _WordDisplayCard extends StatelessWidget {
+class _SentenceCard extends StatelessWidget {
   final WordEntry entry;
   final bool showHint;
-  final VoidCallback onHintTap;
   final VoidCallback onSpeakTap;
 
-  const _WordDisplayCard({
+  const _SentenceCard({
     required this.entry,
     required this.showHint,
-    required this.onHintTap,
     required this.onSpeakTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Split sentence into parts around ___
+    final parts = entry.sentence.split('___');
+    final before = parts.isNotEmpty ? parts[0] : '';
+    final after = parts.length > 1 ? parts[1] : '';
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -418,140 +424,89 @@ class _WordDisplayCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Big emoji
-          Text(entry.emoji, style: const TextStyle(fontSize: 52)),
-          const SizedBox(width: 16),
-
-          // Word + hint text
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry.word,
-                  style: GoogleFonts.nunito(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w900,
-                    color: AppTheme.primaryPurple,
-                    letterSpacing: 4,
+          // Emoji + speak button row
+          Row(
+            children: [
+              Text(entry.emoji, style: const TextStyle(fontSize: 40)),
+              const Spacer(),
+              GestureDetector(
+                onTap: onSpeakTap,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentBlue.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.volume_up_rounded,
+                    color: AppTheme.accentBlue,
+                    size: 22,
                   ),
                 ),
-                if (showHint)
-                  Text(
-                    entry.hint,
-                    style: GoogleFonts.nunito(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textMuted,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Sentence with blank highlighted
+          RichText(
+            text: TextSpan(
+              style: GoogleFonts.nunito(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.textDark,
+                height: 1.4,
+              ),
+              children: [
+                TextSpan(text: before),
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.middle,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryOrange.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppTheme.primaryOrange,
+                        width: 2,
+                      ),
+                    ),
+                    child: Text(
+                      '  ___  ',
+                      style: GoogleFonts.nunito(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.primaryOrange,
+                      ),
                     ),
                   ),
+                ),
+                TextSpan(text: after),
               ],
             ),
           ),
 
-          // Speak button
-          GestureDetector(
-            onTap: onSpeakTap,
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppTheme.accentBlue.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.volume_up_rounded,
-                color: AppTheme.accentBlue,
-                size: 26,
+          // Hint
+          if (showHint) ...[
+            const SizedBox(height: 8),
+            Text(
+              '💡 The missing word is: ${entry.word}',
+              style: GoogleFonts.nunito(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textMuted,
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
   }
-}
-
-// ─── Writing Guides ───────────────────────────────────────────────────────────
-
-class _WritingGuides extends StatelessWidget {
-  final double width;
-  final double height;
-
-  const _WritingGuides({required this.width, required this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppTheme.primaryPurple.withValues(alpha: 0.2),
-          width: 2,
-        ),
-      ),
-      child: CustomPaint(
-        painter: _GuideLinesPainter(),
-      ),
-    );
-  }
-}
-
-class _GuideLinesPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppTheme.accentBlue.withValues(alpha: 0.2)
-      ..strokeWidth = 1.2
-      ..style = PaintingStyle.stroke;
-
-    final dashPaint = Paint()
-      ..color = AppTheme.accentPink.withValues(alpha: 0.25)
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
-
-    // Baseline (solid)
-    final baselineY = size.height * 0.72;
-    canvas.drawLine(
-      Offset(16, baselineY),
-      Offset(size.width - 16, baselineY),
-      paint,
-    );
-
-    // Midline (dashed)
-    final midlineY = size.height * 0.38;
-    _drawDashedLine(
-      canvas,
-      Offset(16, midlineY),
-      Offset(size.width - 16, midlineY),
-      dashPaint,
-    );
-  }
-
-  void _drawDashedLine(
-      Canvas canvas, Offset start, Offset end, Paint paint) {
-    const dashWidth = 8.0;
-    const dashSpace = 6.0;
-    double distance = 0;
-    final totalDistance = (end - start).distance;
-    final direction = (end - start) / totalDistance;
-
-    while (distance < totalDistance) {
-      final dashStart = start + direction * distance;
-      final dashEnd = start +
-          direction * (distance + dashWidth).clamp(0, totalDistance);
-      canvas.drawLine(dashStart, dashEnd, paint);
-      distance += dashWidth + dashSpace;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ─── Ghost Word Hint ──────────────────────────────────────────────────────────
@@ -579,7 +534,76 @@ class _GhostWordHint extends StatelessWidget {
   }
 }
 
-// ─── Buddy Section (mirrors Level 1) ─────────────────────────────────────────
+// ─── Writing Guides ───────────────────────────────────────────────────────────
+
+class _WritingGuides extends StatelessWidget {
+  final double width;
+  final double height;
+
+  const _WritingGuides({required this.width, required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppTheme.primaryPurple.withValues(alpha: 0.2),
+          width: 2,
+        ),
+      ),
+      child: CustomPaint(painter: _GuideLinesPainter()),
+    );
+  }
+}
+
+class _GuideLinesPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppTheme.accentBlue.withValues(alpha: 0.2)
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+
+    final dashPaint = Paint()
+      ..color = AppTheme.accentPink.withValues(alpha: 0.25)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    final baselineY = size.height * 0.72;
+    canvas.drawLine(
+        Offset(16, baselineY), Offset(size.width - 16, baselineY), paint);
+
+    final midlineY = size.height * 0.38;
+    _drawDashedLine(canvas, Offset(16, midlineY),
+        Offset(size.width - 16, midlineY), dashPaint);
+  }
+
+  void _drawDashedLine(
+      Canvas canvas, Offset start, Offset end, Paint paint) {
+    const dashWidth = 8.0;
+    const dashSpace = 6.0;
+    double distance = 0;
+    final totalDistance = (end - start).distance;
+    final direction = (end - start) / totalDistance;
+
+    while (distance < totalDistance) {
+      final dashStart = start + direction * distance;
+      final dashEnd = start +
+          direction * (distance + dashWidth).clamp(0, totalDistance);
+      canvas.drawLine(dashStart, dashEnd, paint);
+      distance += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ─── Buddy Section ────────────────────────────────────────────────────────────
 
 class _BuddySection extends StatelessWidget {
   final String word;
@@ -597,8 +621,8 @@ class _BuddySection extends StatelessWidget {
   String _bubbleMessage(BuddyData buddy) {
     if (visionResult != null) return visionResult!.encouragement;
     if (isEvaluating) return 'Checking your word... 🔍';
-    if (hasDrawn) return 'Great effort! Tap Check when ready! ✅';
-    return 'Write the word $word! ${buddy.idleMessage}';
+    if (hasDrawn) return 'Great try! Tap Check when ready! ✅';
+    return 'Write the missing word! ${buddy.idleMessage}';
   }
 
   @override
@@ -664,13 +688,13 @@ class _SpeechBubble extends StatelessWidget {
         ),
         Expanded(
           child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 14, vertical: 11),
+            padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             decoration: BoxDecoration(
               color: AppTheme.cardWhite,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                  color: color.withValues(alpha: 0.5), width: 2),
+              border:
+              Border.all(color: color.withValues(alpha: 0.5), width: 2),
               boxShadow: [
                 BoxShadow(
                   color: color.withValues(alpha: 0.12),
@@ -741,7 +765,7 @@ class _BubbleTailPainter extends CustomPainter {
       old.color != color;
 }
 
-// ─── XP Strip (identical to Level 1) ─────────────────────────────────────────
+// ─── XP Strip ─────────────────────────────────────────────────────────────────
 
 class _XpStrip extends StatelessWidget {
   const _XpStrip();
@@ -751,7 +775,7 @@ class _XpStrip extends StatelessWidget {
     return Consumer<GamificationService>(
       builder: (context, gam, _) => Container(
         padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: AppTheme.cardWhite,
           borderRadius: BorderRadius.circular(20),
@@ -781,7 +805,7 @@ class _XpStrip extends StatelessWidget {
                   value: gam.levelProgress,
                   minHeight: 10,
                   backgroundColor:
-                      AppTheme.primaryPurple.withValues(alpha: 0.15),
+                  AppTheme.primaryPurple.withValues(alpha: 0.15),
                   valueColor: const AlwaysStoppedAnimation<Color>(
                       AppTheme.primaryPurple),
                 ),
@@ -812,7 +836,7 @@ class _XpStrip extends StatelessWidget {
   }
 }
 
-// ─── Star Celebration Overlay (identical to Level 1) ─────────────────────────
+// ─── Star Celebration Overlay ─────────────────────────────────────────────────
 
 class _StarCelebrationOverlay extends StatefulWidget {
   final VoidCallback onComplete;
@@ -834,27 +858,16 @@ class _StarCelebrationOverlayState extends State<_StarCelebrationOverlay>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    );
-    _scale = Tween<double>(begin: 0.0, end: 1.4).animate(
-      CurvedAnimation(
+        vsync: this, duration: const Duration(milliseconds: 1800));
+    _scale = Tween<double>(begin: 0.0, end: 1.4).animate(CurvedAnimation(
         parent: _ctrl,
-        curve: const Interval(0.0, 0.45, curve: Curves.elasticOut),
-      ),
-    );
-    _opacity = Tween<double>(begin: 1.0, end: 0.0).animate(
-      CurvedAnimation(
+        curve: const Interval(0.0, 0.45, curve: Curves.elasticOut)));
+    _opacity = Tween<double>(begin: 1.0, end: 0.0).animate(CurvedAnimation(
         parent: _ctrl,
-        curve: const Interval(0.55, 1.0, curve: Curves.easeIn),
-      ),
-    );
-    _dy = Tween<double>(begin: 0.0, end: -70.0).animate(
-      CurvedAnimation(
+        curve: const Interval(0.55, 1.0, curve: Curves.easeIn)));
+    _dy = Tween<double>(begin: 0.0, end: -70.0).animate(CurvedAnimation(
         parent: _ctrl,
-        curve: const Interval(0.35, 1.0, curve: Curves.easeOut),
-      ),
-    );
+        curve: const Interval(0.35, 1.0, curve: Curves.easeOut)));
     _ctrl.forward().then((_) => widget.onComplete());
   }
 
@@ -876,10 +889,8 @@ class _StarCelebrationOverlayState extends State<_StarCelebrationOverlay>
               offset: Offset(0, _dy.value),
               child: Transform.scale(
                 scale: _scale.value,
-                child: const Text(
-                  '⭐⭐⭐',
-                  style: TextStyle(fontSize: 60),
-                ),
+                child: const Text('⭐⭐⭐',
+                    style: TextStyle(fontSize: 60)),
               ),
             ),
           ),
@@ -889,7 +900,7 @@ class _StarCelebrationOverlayState extends State<_StarCelebrationOverlay>
   }
 }
 
-// ─── Action Button (identical to Level 1) ────────────────────────────────────
+// ─── Action Button ────────────────────────────────────────────────────────────
 
 class _ActionButton extends StatelessWidget {
   final IconData icon;
@@ -929,33 +940,27 @@ class _ActionButton extends StatelessWidget {
               child: Center(
                 child: isLoading
                     ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 3,
-                        ),
-                      )
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 3))
                     : Icon(icon, color: Colors.white, size: 28),
               ),
             ),
           ),
         ),
         const SizedBox(height: 6),
-        Text(
-          label,
-          style: GoogleFonts.nunito(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.textMuted,
-          ),
-        ),
+        Text(label,
+            style: GoogleFonts.nunito(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textMuted)),
       ],
     );
   }
 }
 
-// ─── Feedback Panel (identical to Level 1) ───────────────────────────────────
+// ─── Feedback Panel ───────────────────────────────────────────────────────────
 
 class _FeedbackPanel extends StatelessWidget {
   final VisionResult visionResult;
@@ -1003,30 +1008,24 @@ class _FeedbackPanel extends StatelessWidget {
           ),
           if (visionResult.tips.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Text(
-              'Tips:',
-              style: GoogleFonts.nunito(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.primaryPurple,
-              ),
-            ),
+            Text('Tips:',
+                style: GoogleFonts.nunito(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryPurple)),
             ...visionResult.tips.map(
-              (tip) => Padding(
+                  (tip) => Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('💡 ', style: TextStyle(fontSize: 14)),
                     Expanded(
-                      child: Text(
-                        tip,
-                        style: GoogleFonts.nunito(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textMuted,
-                        ),
-                      ),
+                      child: Text(tip,
+                          style: GoogleFonts.nunito(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textMuted)),
                     ),
                   ],
                 ),
@@ -1044,12 +1043,10 @@ class _FeedbackPanel extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(
         5,
-        (i) => Padding(
+            (i) => Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Icon(
-            i < starCount
-                ? Icons.star_rounded
-                : Icons.star_outline_rounded,
+            i < starCount ? Icons.star_rounded : Icons.star_outline_rounded,
             color: i < starCount
                 ? AppTheme.accentYellow
                 : AppTheme.textMuted.withValues(alpha: 0.3),

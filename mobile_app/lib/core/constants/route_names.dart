@@ -5,4 +5,5 @@ class RouteNames {
   static const String parentRegister = '/parent-register';
   static const String createChild = '/create-child';
   static const String settings = '/settings';
+  static const String sentencePractice = '/sentence-practice';
 }

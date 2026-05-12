@@ -5,11 +5,10 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/buddy_data.dart';
 import '../../../core/constants/word_data.dart';
 import '../../../services/gamification/gamification_service.dart';
-import 'word_practice_screen.dart';
-import 'sentence_selection_screen.dart';
+import 'sentence_practice_screen.dart';
 
-class WordSelectionScreen extends StatelessWidget {
-  const WordSelectionScreen({super.key});
+class SentenceSelectionScreen extends StatelessWidget {
+  const SentenceSelectionScreen({super.key});
 
   static const List<Color> _cardColors = [
     AppTheme.accentPink,
@@ -26,109 +25,21 @@ class WordSelectionScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Choose a Word'),
-        actions: [
-          Consumer<GamificationService>(
-            builder: (context, gam, _) {
-              final practicedWords = WordData.all
-                  .where((e) => (gam.starsPerCharacter[e.word] ?? 0) > 0)
-                  .length;
-              final unlocked = practicedWords >= 5;
-
-              return Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: GestureDetector(
-                  onTap: () {
-                    if (unlocked) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const SentenceSelectionScreen(),
-                        ),
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Practice ${5 - practicedWords} more words to unlock Level 3! ⭐',
-                            style: GoogleFonts.nunito(
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                          backgroundColor: AppTheme.accentGreen,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: unlocked
-                          ? AppTheme.accentGreen
-                          : AppTheme.textMuted.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: unlocked
-                          ? [
-                        BoxShadow(
-                          color: AppTheme.accentGreen.withValues(alpha: 0.35),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        ),
-                      ]
-                          : [],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          unlocked ? '📖' : '🔒',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Level 3',
-                          style: GoogleFonts.nunito(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: unlocked ? Colors.white : AppTheme.textMuted,
-                          ),
-                        ),
-                        if (unlocked) ...[
-                          const SizedBox(width: 4),
-                          const Icon(
-                            Icons.arrow_forward_rounded,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
+        title: const Text('Choose a Sentence'),
       ),
       body: CustomPaint(
         painter: BubbleBackgroundPainter(),
         child: SafeArea(
           child: Column(
             children: [
-              // Level / XP bar — reused from Level 1
+              // Level / XP bar
               const Padding(
                 padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
                 child: _LevelBar(),
               ),
               const SizedBox(height: 10),
 
-              // Buddy picker — identical to Level 1
+              // Buddy picker
               const Padding(
                 padding: EdgeInsets.fromLTRB(20, 6, 20, 0),
                 child: _BuddyPicker(),
@@ -136,7 +47,7 @@ class WordSelectionScreen extends StatelessWidget {
               const SizedBox(height: 8),
 
               Text(
-                'Which word do you want to practice?',
+                'Which sentence do you want to complete?',
                 style: GoogleFonts.nunito(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
@@ -145,14 +56,14 @@ class WordSelectionScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
 
-              // Word grid
+              // Emoji grid
               Expanded(
                 child: Consumer<GamificationService>(
                   builder: (context, gam, _) => GridView.builder(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 20, vertical: 8),
                     gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
+                    const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 4,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
@@ -162,9 +73,9 @@ class WordSelectionScreen extends StatelessWidget {
                     itemBuilder: (context, i) {
                       final entry = words[i];
                       final stars =
-                          gam.starsPerCharacter[entry.word] ?? 0;
+                          gam.starsPerCharacter['s3_${entry.word}'] ?? 0;
                       final color = _cardColors[i % _cardColors.length];
-                      return _WordCard(
+                      return _SentenceCard(
                         entry: entry,
                         stars: stars,
                         color: color,
@@ -172,7 +83,7 @@ class WordSelectionScreen extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) =>
-                                WordPracticeScreen(initialIndex: i),
+                                SentencePracticeScreen(initialIndex: i),
                           ),
                         ),
                       );
@@ -188,7 +99,7 @@ class WordSelectionScreen extends StatelessWidget {
   }
 }
 
-// ─── Level Bar (identical to Level 1) ────────────────────────────────────────
+// ─── Level Bar ────────────────────────────────────────────────────────────────
 
 class _LevelBar extends StatelessWidget {
   const _LevelBar();
@@ -198,7 +109,7 @@ class _LevelBar extends StatelessWidget {
     return Consumer<GamificationService>(
       builder: (context, gam, _) => Container(
         padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: AppTheme.cardWhite,
           borderRadius: BorderRadius.circular(20),
@@ -266,7 +177,7 @@ class _LevelBar extends StatelessWidget {
                       value: gam.levelProgress,
                       minHeight: 8,
                       backgroundColor:
-                          AppTheme.primaryPurple.withValues(alpha: 0.15),
+                      AppTheme.primaryPurple.withValues(alpha: 0.15),
                       valueColor: const AlwaysStoppedAnimation<Color>(
                           AppTheme.primaryPurple),
                     ),
@@ -297,7 +208,7 @@ class _LevelBar extends StatelessWidget {
   }
 }
 
-// ─── Buddy Picker (identical to Level 1) ─────────────────────────────────────
+// ─── Buddy Picker ─────────────────────────────────────────────────────────────
 
 class _BuddyPicker extends StatelessWidget {
   const _BuddyPicker();
@@ -344,8 +255,7 @@ class _BuddyPicker extends StatelessWidget {
                   child: Center(
                     child: Text(
                       buddy.emoji,
-                      style:
-                          TextStyle(fontSize: selected ? 26 : 22),
+                      style: TextStyle(fontSize: selected ? 26 : 22),
                     ),
                   ),
                 ),
@@ -358,15 +268,15 @@ class _BuddyPicker extends StatelessWidget {
   }
 }
 
-// ─── Word Card ────────────────────────────────────────────────────────────────
+// ─── Sentence Card (emoji only, sentence preview on long press) ───────────────
 
-class _WordCard extends StatelessWidget {
+class _SentenceCard extends StatelessWidget {
   final WordEntry entry;
   final int stars;
   final Color color;
   final VoidCallback onTap;
 
-  const _WordCard({
+  const _SentenceCard({
     required this.entry,
     required this.stars,
     required this.color,
@@ -378,6 +288,25 @@ class _WordCard extends StatelessWidget {
     final practiced = stars > 0;
     return GestureDetector(
       onTap: onTap,
+      onLongPress: () {
+        // Show sentence preview on long press
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              entry.sentence,
+              style: GoogleFonts.nunito(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
@@ -389,8 +318,7 @@ class _WordCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color:
-                  color.withValues(alpha: practiced ? 0.28 : 0.10),
+              color: color.withValues(alpha: practiced ? 0.28 : 0.10),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -399,39 +327,29 @@ class _WordCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Emoji picture clue
+            // Big emoji
             Text(
               entry.emoji,
-              style: const TextStyle(fontSize: 24),
+              style: const TextStyle(fontSize: 36),
             ),
-            const SizedBox(height: 4),
-            // Word text
-            Text(
-              entry.word,
-              style: GoogleFonts.nunito(
-                fontSize: entry.word.length <= 3 ? 22 : 16,
-                fontWeight: FontWeight.w900,
-                color: practiced ? Colors.white : color,
-              ),
-            ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             // Star rating
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(
                 3,
-                (i) => Icon(
+                    (i) => Icon(
                   i < stars
                       ? Icons.star_rounded
                       : Icons.star_outline_rounded,
                   size: 12,
                   color: i < stars
                       ? (practiced
-                          ? Colors.white
-                          : AppTheme.accentYellow)
+                      ? Colors.white
+                      : AppTheme.accentYellow)
                       : (practiced
-                          ? Colors.white.withValues(alpha: 0.35)
-                          : color.withValues(alpha: 0.25)),
+                      ? Colors.white.withValues(alpha: 0.35)
+                      : color.withValues(alpha: 0.25)),
                 ),
               ),
             ),
