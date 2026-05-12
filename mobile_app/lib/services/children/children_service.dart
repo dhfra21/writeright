@@ -44,17 +44,17 @@ class ChildrenService {
     try {
       final resp = await http
           .post(
-            Uri.parse('$_apiBase/children'),
-            headers: {
-              'Authorization': 'Bearer $accessToken',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode({
-              'child_name': name,
-              'age': age,
-              'avatar_url': avatarEmoji,
-            }),
-          )
+        Uri.parse('$_apiBase/children'),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'child_name': name,
+          'age': age,
+          'avatar_url': avatarEmoji,
+        }),
+      )
           .timeout(const Duration(seconds: 15));
 
       debugPrint('[ChildrenService] createChild HTTP ${resp.statusCode}');
@@ -66,6 +66,66 @@ class ChildrenService {
     } catch (e) {
       debugPrint('[ChildrenService] createChild error: $e');
       return null;
+    }
+  }
+
+  /// Returns the updated [ChildProfile] or null on failure.
+  Future<ChildProfile?> updateChild({
+    required String accessToken,
+    required String childId,
+    required String name,
+    required int age,
+    required String avatarEmoji,
+  }) async {
+    try {
+      final resp = await http
+          .patch(
+        Uri.parse('$_apiBase/children/$childId'),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'child_name': name,
+          'age': age,
+          'avatar_url': avatarEmoji,
+        }),
+      )
+          .timeout(const Duration(seconds: 15));
+
+      debugPrint('[ChildrenService] updateChild HTTP ${resp.statusCode}');
+      if (resp.statusCode == 200) {
+        final body = jsonDecode(resp.body) as Map<String, dynamic>;
+        return ChildProfile.fromJson(body['data'] as Map<String, dynamic>);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[ChildrenService] updateChild error: $e');
+      return null;
+    }
+  }
+
+  /// Returns true on success.
+  Future<bool> deleteChild({
+    required String accessToken,
+    required String childId,
+  }) async {
+    try {
+      final resp = await http
+          .delete(
+        Uri.parse('$_apiBase/children/$childId'),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json',
+        },
+      )
+          .timeout(const Duration(seconds: 15));
+
+      debugPrint('[ChildrenService] deleteChild HTTP ${resp.statusCode}');
+      return resp.statusCode == 200 || resp.statusCode == 204;
+    } catch (e) {
+      debugPrint('[ChildrenService] deleteChild error: $e');
+      return false;
     }
   }
 }

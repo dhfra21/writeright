@@ -8,6 +8,7 @@ import '../../../services/ml_inference/groq_vision_service.dart';
 import '../../../services/tts/tts_service.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/character_template.dart';
+import '../../../core/state/app_settings.dart';
 
 class PracticeScreen extends StatefulWidget {
   final int initialIndex;
@@ -142,9 +143,12 @@ class _PracticeScreenState extends State<PracticeScreen> {
             if (stars >= 2) _showCelebration = true;
           });
 
-          _tts.speak(
-            '${visionResult.encouragement}. ${visionResult.detailedFeedback}',
-          );
+          final settings = context.read<AppSettings>();
+          if (settings.voiceFeedbackEnabled) {
+            _tts.speak(
+              '${visionResult.encouragement}. ${visionResult.detailedFeedback}',
+            );
+          }
         }
       }
     } catch (e, stack) {

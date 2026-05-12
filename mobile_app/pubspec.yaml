@@ -33,9 +33,3 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   
-  assets:
-    - assets/images/
-    - assets/animations/
-    - assets/sounds/
-    - assets/fonts/
-    - ../ml_models/pretrained/

@@ -8,6 +8,7 @@ import '../../../services/gamification/gamification_service.dart';
 import '../../../services/ml_inference/groq_vision_service.dart';
 import '../../../services/tts/tts_service.dart';
 import '../widgets/drawing_canvas.dart';
+import '../../../core/state/app_settings.dart';
 
 class WordPracticeScreen extends StatefulWidget {
   final int initialIndex;
@@ -47,7 +48,10 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
     );
     // Speak the word aloud when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _tts.speak(_currentWord.word);
+      final settings = context.read<AppSettings>();
+      if (settings.voiceFeedbackEnabled) {
+        _tts.speak(_currentWord.word);
+      }
     });
   }
 
@@ -76,7 +80,8 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
         _resetState();
       });
       _canvasKey.currentState?.clear();
-      _tts.speak(_currentWord.word);
+      final settings = context.read<AppSettings>();
+      if (settings.voiceFeedbackEnabled) _tts.speak(_currentWord.word);
     }
   }
 
@@ -87,7 +92,8 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
         _resetState();
       });
       _canvasKey.currentState?.clear();
-      _tts.speak(_currentWord.word);
+      final settings = context.read<AppSettings>();
+      if (settings.voiceFeedbackEnabled) _tts.speak(_currentWord.word);
     }
   }
 
@@ -155,9 +161,12 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
           });
 
           // Speak encouragement + word again
-          _tts.speak(
-            '${visionResult.encouragement}. ${visionResult.detailedFeedback}',
-          );
+          final settings = context.read<AppSettings>();
+          if (settings.voiceFeedbackEnabled) {
+            _tts.speak(
+              '${visionResult.encouragement}. ${visionResult.detailedFeedback}',
+            );
+          }
         }
       }
     } catch (e, stack) {

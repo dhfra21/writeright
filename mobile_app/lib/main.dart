@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/state/app_state.dart';
+import 'core/state/app_settings.dart';
+import 'screens/settings_screen.dart';
 import 'core/theme/app_theme.dart';
 import 'screens/auth_gate_screen.dart';
 import 'services/gamification/gamification_service.dart';
+
 
 void main() {
   runApp(const MyApp());
@@ -17,6 +20,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AppState()..init()),
+        ChangeNotifierProvider(create: (_) => AppSettings()..init()),
         ChangeNotifierProvider(create: (_) => GamificationService()..loadProgress()),
       ],
       child: MaterialApp(
@@ -24,6 +28,9 @@ class MyApp extends StatelessWidget {
         theme: AppTheme.lightTheme,
         home: const AuthGateScreen(),
         debugShowCheckedModeBanner: false,
+        routes: {
+          '/settings': (_) => const SettingsScreen(),
+        },
       ),
     );
   }

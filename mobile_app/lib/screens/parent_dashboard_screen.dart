@@ -215,9 +215,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> with Widg
         title: const Text('Parent Dashboard'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _handleSignOut,
-            tooltip: 'Sign Out',
+            icon: const Icon(Icons.settings_rounded),
+            onPressed: () => Navigator.pushNamed(context, '/settings'),
           ),
         ],
       ),
