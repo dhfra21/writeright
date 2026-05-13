@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -30,6 +31,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
 
   final GlobalKey<DrawingCanvasState> _canvasKey = GlobalKey<DrawingCanvasState>();
   final TtsService _tts = TtsService();
+  final AudioPlayer _audioPlayer = AudioPlayer();
   final ScrollController _scrollController = ScrollController();
   late final GroqVisionService _groqService;
 
@@ -53,6 +55,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
   @override
   void dispose() {
     _tts.dispose();
+    _audioPlayer.dispose();
     _scrollController.dispose();
     _lockScroll.dispose();
     super.dispose();
@@ -150,6 +153,12 @@ class _PracticeScreenState extends State<PracticeScreen> {
           _isEvaluating = false;
           if (stars >= 2) _showCelebration = true;
         });
+
+        if (stars >= 2) {
+          _audioPlayer.play(
+            AssetSource('sounds/WIN sound effect no copyright.mp3'),
+          );
+        }
 
         if (settings.voiceFeedbackEnabled) {
           _tts.speak(

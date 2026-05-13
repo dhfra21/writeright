@@ -22,7 +22,7 @@ class WordSelectionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final words = WordData.all;
+    const words = WordData.all;
 
     return Scaffold(
       appBar: AppBar(
@@ -239,16 +239,19 @@ class _LevelBar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Level ${gam.level}',
-                        style: GoogleFonts.nunito(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.primaryPurple,
+                      Expanded(
+                        child: Text(
+                          'Level ${gam.level}',
+                          style: GoogleFonts.nunito(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.primaryPurple,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      const SizedBox(width: 8),
                       Text(
                         '${gam.xp} / ${gam.xpForNextLevel} XP',
                         style: GoogleFonts.nunito(

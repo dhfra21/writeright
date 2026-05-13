@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/state/app_state.dart';
 import '../core/theme/app_theme.dart';
 import '../features/handwriting_practice/screens/character_selection_screen.dart';
+import '../features/handwriting_practice/screens/word_selection_screen.dart';
 import '../features/parent_controls/screens/create_child_account_screen.dart';
 import '../features/parent_controls/screens/parent_login_screen.dart';
 import '../models/child_profile.dart';
@@ -193,19 +194,41 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> with Widg
   }
 
   Future<void> _handleStartLearning() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const CharacterSelectionScreen(),
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => _PracticePickerSheet(
+        onLetters: () async {
+          Navigator.pop(sheetContext);
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const CharacterSelectionScreen(),
+            ),
+          );
+          if (!mounted) return;
+          final appState = context.read<AppState>();
+          if (appState.selectedChild != null) {
+            _loadProgressForChild(appState.selectedChild!);
+          }
+        },
+        onWords: () async {
+          Navigator.pop(sheetContext);
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const WordSelectionScreen(),
+            ),
+          );
+          if (!mounted) return;
+          final appState = context.read<AppState>();
+          if (appState.selectedChild != null) {
+            _loadProgressForChild(appState.selectedChild!);
+          }
+        },
       ),
     );
-
-    // Reload progress when returning from practice
-    if (!mounted) return;
-    final appState = context.read<AppState>();
-    if (appState.selectedChild != null) {
-      _loadProgressForChild(appState.selectedChild!);
-    }
   }
 
   @override
@@ -244,12 +267,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> with Widg
                 ),
               ),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _handleAddChild,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Child'),
-        backgroundColor: AppTheme.accentGreen,
-      ),
     );
   }
 
@@ -557,5 +574,129 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> with Widg
     if (diff.inDays < 7) return '${diff.inDays} days ago';
 
     return '${date.day}/${date.month}/${date.year}';
+  }
+}
+
+class _PracticePickerSheet extends StatelessWidget {
+  const _PracticePickerSheet({
+    required this.onLetters,
+    required this.onWords,
+  });
+
+  final VoidCallback onLetters;
+  final VoidCallback onWords;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.45,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: const Color(0xFFDDDDDD),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'What would you like to practice?',
+            style: GoogleFonts.nunito(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: AppTheme.textDark,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: _PracticeOption(
+                  emoji: '🔤',
+                  label: 'Letters',
+                  subtitle: 'Practice A–Z',
+                  color: AppTheme.primaryOrange,
+                  onTap: onLetters,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _PracticeOption(
+                  emoji: '📝',
+                  label: 'Words',
+                  subtitle: 'Practice words',
+                  color: AppTheme.primaryPurple,
+                  onTap: onWords,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PracticeOption extends StatelessWidget {
+  const _PracticeOption({
+    required this.emoji,
+    required this.label,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String emoji;
+  final String label;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.4), width: 2),
+        ),
+        child: Column(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 40)),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              style: GoogleFonts.nunito(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: GoogleFonts.nunito(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -5,7 +5,6 @@ import '../../../core/constants/buddy_data.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../services/gamification/gamification_service.dart';
 import 'practice_screen.dart';
-import 'word_selection_screen.dart';
 
 class CharacterSelectionScreen extends StatelessWidget {
   const CharacterSelectionScreen({super.key});
@@ -29,101 +28,6 @@ class CharacterSelectionScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Choose a Letter'),
-        actions: [
-          // Level 2 button — top right of AppBar
-          Consumer<GamificationService>(
-            builder: (context, gam, _) {
-              // Count how many letters have been practiced (stars > 0)
-              final practiced = _characters
-                  .where((c) => (gam.starsPerCharacter[c] ?? 0) > 0)
-                  .length;
-              final unlocked = practiced >= 5; // unlock after 5 letters
-
-              return Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: GestureDetector(
-                  onTap: () {
-                    if (unlocked) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const WordSelectionScreen(),
-                        ),
-                      );
-                    } else {
-                      // Show how many more letters needed
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Practice ${5 - practiced} more letters to unlock Level 2! ⭐',
-                            style: GoogleFonts.nunito(
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                          backgroundColor: AppTheme.primaryPurple,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: unlocked
-                          ? AppTheme.accentGreen
-                          : AppTheme.textMuted.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: unlocked
-                          ? [
-                              BoxShadow(
-                                color: AppTheme.accentGreen
-                                    .withValues(alpha: 0.35),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ]
-                          : [],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          unlocked ? '✏️' : '🔒',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Level 2',
-                          style: GoogleFonts.nunito(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: unlocked
-                                ? Colors.white
-                                : AppTheme.textMuted,
-                          ),
-                        ),
-                        if (unlocked) ...[
-                          const SizedBox(width: 4),
-                          const Icon(
-                            Icons.arrow_forward_rounded,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
       ),
       body: CustomPaint(
         painter: BubbleBackgroundPainter(),
@@ -243,16 +147,19 @@ class _LevelBar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Level ${gam.level}',
-                        style: GoogleFonts.nunito(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.primaryPurple,
+                      Expanded(
+                        child: Text(
+                          'Level ${gam.level}',
+                          style: GoogleFonts.nunito(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.primaryPurple,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      const SizedBox(width: 8),
                       Text(
                         '${gam.xp} / ${gam.xpForNextLevel} XP',
                         style: GoogleFonts.nunito(
