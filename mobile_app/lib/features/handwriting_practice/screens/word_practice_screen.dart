@@ -50,7 +50,7 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final settings = context.read<AppSettings>();
       if (settings.voiceFeedbackEnabled) {
-        _tts.speak(_currentWord.word);
+        _tts.speak(_currentWord.word, speed: settings.voiceSpeed);
       }
     });
   }
@@ -82,8 +82,8 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
       _canvasKey.currentState?.clear();
       final settings = context.read<AppSettings>();
       if (settings.voiceFeedbackEnabled) {
-        _tts.speak(_currentWord.word);
-      };
+        _tts.speak(_currentWord.word, speed: settings.voiceSpeed);
+      }
     }
   }
 
@@ -96,8 +96,8 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
       _canvasKey.currentState?.clear();
       final settings = context.read<AppSettings>();
       if (settings.voiceFeedbackEnabled) {
-        _tts.speak(_currentWord.word);
-      };
+        _tts.speak(_currentWord.word, speed: settings.voiceSpeed);
+      }
     }
   }
 
@@ -137,6 +137,7 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
     if (canvasState == null || !canvasState.hasStrokes) return;
 
     final gamification = context.read<GamificationService>();
+    final settings = context.read<AppSettings>();
 
     setState(() {
       _isEvaluating = true;
@@ -144,33 +145,37 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
     });
 
     try {
-      final imageBytes = await canvasState.exportAsImage();
-      if (imageBytes != null && mounted) {
-        final visionResult = await _groqService.evaluateFromImage(
-          // Pass word context so AI knows what to evaluate
-          character: _currentWord.word,
-          imageBytes: imageBytes,
-        );
+      VisionResult? visionResult;
+      if (!settings.aiEvaluationEnabled) {
+        visionResult = _groqService.fallbackResult();
+      } else {
+        final imageBytes = await canvasState.exportAsImage();
+        if (imageBytes != null && mounted) {
+          visionResult = await _groqService.evaluateFromImage(
+            character: _currentWord.word,
+            imageBytes: imageBytes,
+          );
+        }
+      }
 
-        if (mounted) {
-          final score = visionResult.score.similarity;
-          final stars = _starsForScore(score);
+      if (visionResult != null && mounted) {
+        final score = visionResult.score.similarity;
+        final stars = _starsForScore(score);
 
-          gamification.processPracticeResult(_currentWord.word, score);
+        gamification.processPracticeResult(_currentWord.word, score);
 
-          setState(() {
-            _visionResult = visionResult;
-            _isEvaluating = false;
-            if (stars >= 2) _showCelebration = true;
-          });
+        final result = visionResult;
+        setState(() {
+          _visionResult = result;
+          _isEvaluating = false;
+          if (stars >= 2) _showCelebration = true;
+        });
 
-          // Speak encouragement + word again
-          final settings = context.read<AppSettings>();
-          if (settings.voiceFeedbackEnabled) {
-            _tts.speak(
-              '${visionResult.encouragement}. ${visionResult.detailedFeedback}',
-            );
-          }
+        if (settings.voiceFeedbackEnabled) {
+          _tts.speak(
+            '${result.encouragement}. ${result.detailedFeedback}',
+            speed: settings.voiceSpeed,
+          );
         }
       }
     } catch (e, stack) {
@@ -231,7 +236,7 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
                       entry: _currentWord,
                       showHint: _showHint,
                       onHintTap: _toggleHint,
-                      onSpeakTap: () => _tts.speak(_currentWord.word),
+                      onSpeakTap: () => _tts.speak(_currentWord.word, speed: context.read<AppSettings>().voiceSpeed),
                     ),
                     const SizedBox(height: 12),
 

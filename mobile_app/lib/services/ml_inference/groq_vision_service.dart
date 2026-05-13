@@ -39,7 +39,7 @@ class GroqVisionService implements MLInferenceService {
     if (_apiKey.isEmpty) {
       debugPrint('[GroqVision] ✗ API key is empty! '
           'Run with: flutter run --dart-define=GROQ_API_KEY=your_key_here');
-      return _fallbackResult();
+      return fallbackResult();
     }
 
     final base64Image = base64Encode(imageBytes);
@@ -90,12 +90,12 @@ class GroqVisionService implements MLInferenceService {
       } else {
         debugPrint('[GroqVision] ✗ Non-200 status. Response body:');
         debugPrint(response.body);
-        return _fallbackResult();
+        return fallbackResult();
       }
     } catch (e, stack) {
       debugPrint('[GroqVision] ✗ Network/exception error: $e');
       debugPrint('[GroqVision]   Stack: $stack');
-      return _fallbackResult();
+      return fallbackResult();
     }
   }
 
@@ -133,7 +133,7 @@ Additional rules:
     required String sentence,
     required List<int> imageBytes,
   }) async {
-    if (_apiKey.isEmpty) return _fallbackResult();
+    if (_apiKey.isEmpty) return fallbackResult();
 
     final base64Image = base64Encode(imageBytes);
 
@@ -178,11 +178,11 @@ Additional rules:
         return _parseResponse(data, word);
       } else {
         debugPrint('[GroqVision] ✗ Non-200: ${response.body}');
-        return _fallbackResult();
+        return fallbackResult();
       }
     } catch (e, stack) {
       debugPrint('[GroqVision] ✗ Error: $e\n$stack');
-      return _fallbackResult();
+      return fallbackResult();
     }
   }
 
@@ -269,11 +269,11 @@ Rules:
     } catch (e, stack) {
       debugPrint('[GroqVision] ✗ Failed to parse response: $e');
       debugPrint('[GroqVision]   Stack: $stack');
-      return _fallbackResult();
+      return fallbackResult();
     }
   }
 
-  VisionResult _fallbackResult() {
+  VisionResult fallbackResult() {
     return VisionResult(
       score: HandwritingScore(
         similarity: 0.5,

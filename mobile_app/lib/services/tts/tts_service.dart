@@ -65,7 +65,7 @@ class TtsService {
 
   // ── Speak ─────────────────────────────────────────────────────────────────
 
-  Future<void> speak(String text) async {
+  Future<void> speak(String text, {double speed = 1.0}) async {
     debugPrint('[TTS-Typecast] speak() called with: "${text.length > 60 ? "${text.substring(0, 60)}…" : text}"');
     debugPrint('[TTS-Typecast] API key configured: ${_apiKey.isNotEmpty}');
 
@@ -86,7 +86,7 @@ class TtsService {
         'language': 'eng',
         'output': {
           'audio_format': 'wav',
-          'audio_tempo': 0.9,
+          'audio_tempo': speed,
           'volume': 100,
         },
       });

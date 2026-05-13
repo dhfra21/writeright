@@ -113,8 +113,9 @@ class _PracticeScreenState extends State<PracticeScreen> {
     final canvasState = _canvasKey.currentState;
     if (canvasState == null || !canvasState.hasStrokes) return;
 
-    // Capture service before async gap
+    // Capture services before async gap
     final gamification = context.read<GamificationService>();
+    final settings = context.read<AppSettings>();
 
     setState(() {
       _isEvaluating = true;
@@ -122,33 +123,39 @@ class _PracticeScreenState extends State<PracticeScreen> {
     });
 
     try {
-      final imageBytes = await canvasState.exportAsImage();
-      if (imageBytes != null && mounted) {
-        final visionResult = await _groqService.evaluateFromImage(
-          character: _currentCharacter,
-          imageBytes: imageBytes,
-        );
+      VisionResult? visionResult;
+      if (!settings.aiEvaluationEnabled) {
+        visionResult = _groqService.fallbackResult();
+      } else {
+        final imageBytes = await canvasState.exportAsImage();
+        if (imageBytes != null && mounted) {
+          visionResult = await _groqService.evaluateFromImage(
+            character: _currentCharacter,
+            imageBytes: imageBytes,
+          );
+        }
+      }
 
-        if (mounted) {
-          final score = visionResult.score.similarity;
-          final stars = _starsForScore(score);
+      if (visionResult != null && mounted) {
+        final score = visionResult.score.similarity;
+        final stars = _starsForScore(score);
 
-          // Award XP and stars based on the AI score
-          gamification.processPracticeResult(_currentCharacter, score);
+        // Award XP and stars based on the AI score
+        gamification.processPracticeResult(_currentCharacter, score);
 
-          // Reveal results and start TTS simultaneously
-          setState(() {
-            _visionResult = visionResult;
-            _isEvaluating = false;
-            if (stars >= 2) _showCelebration = true;
-          });
+        // Reveal results and start TTS simultaneously
+        final result = visionResult;
+        setState(() {
+          _visionResult = result;
+          _isEvaluating = false;
+          if (stars >= 2) _showCelebration = true;
+        });
 
-          final settings = context.read<AppSettings>();
-          if (settings.voiceFeedbackEnabled) {
-            _tts.speak(
-              '${visionResult.encouragement}. ${visionResult.detailedFeedback}',
-            );
-          }
+        if (settings.voiceFeedbackEnabled) {
+          _tts.speak(
+            '${result.encouragement}. ${result.detailedFeedback}',
+            speed: settings.voiceSpeed,
+          );
         }
       }
     } catch (e, stack) {
