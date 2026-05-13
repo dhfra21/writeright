@@ -3,30 +3,26 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/buddy_data.dart';
+import '../../../core/constants/word_data.dart';
+import '../../../core/state/app_settings.dart';
 import '../../../services/gamification/gamification_service.dart';
 import '../../../services/ml_inference/groq_vision_service.dart';
 import '../../../services/tts/tts_service.dart';
 import '../widgets/drawing_canvas.dart';
-import '../widgets/character_template.dart';
-import '../../../core/state/app_settings.dart';
 
-class PracticeScreen extends StatefulWidget {
+class SentencePracticeScreen extends StatefulWidget {
   final int initialIndex;
 
-  const PracticeScreen({super.key, this.initialIndex = 0});
+  const SentencePracticeScreen({super.key, this.initialIndex = 0});
 
   @override
-  State<PracticeScreen> createState() => _PracticeScreenState();
+  State<SentencePracticeScreen> createState() => _SentencePracticeScreenState();
 }
 
-class _PracticeScreenState extends State<PracticeScreen> {
-  static const List<String> _characters = [
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-    'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-  ];
-
+class _SentencePracticeScreenState extends State<SentencePracticeScreen> {
   late int _currentIndex;
-  String get _currentCharacter => _characters[_currentIndex];
+
+  WordEntry get _current => WordData.all[_currentIndex];
 
   final GlobalKey<DrawingCanvasState> _canvasKey = GlobalKey<DrawingCanvasState>();
   final TtsService _tts = TtsService();
@@ -40,6 +36,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
   int _canvasStrokeCount = 0;
   VisionResult? _visionResult;
   bool _showCelebration = false;
+  bool _showHint = false;
 
   @override
   void initState() {
@@ -48,6 +45,12 @@ class _PracticeScreenState extends State<PracticeScreen> {
     _groqService = GroqVisionService(
       apiKey: const String.fromEnvironment('GROQ_API_KEY'),
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final settings = context.read<AppSettings>();
+      if (settings.voiceFeedbackEnabled) {
+        _tts.speak(_current.sentence.replaceAll('___', _current.word), speed: settings.voiceSpeed);
+      }
+    });
   }
 
   @override
@@ -65,26 +68,35 @@ class _PracticeScreenState extends State<PracticeScreen> {
     _resultReady = false;
     _isEvaluating = false;
     _showCelebration = false;
+    _showHint = false;
     _canvasStrokeCount = 0;
   }
 
-  void _nextCharacter() {
-    if (_currentIndex < _characters.length - 1) {
+  void _nextSentence() {
+    if (_currentIndex < WordData.all.length - 1) {
       setState(() {
         _currentIndex++;
         _resetState();
       });
       _canvasKey.currentState?.clear();
+      final settings = context.read<AppSettings>();
+      if (settings.voiceFeedbackEnabled) {
+        _tts.speak(_current.sentence.replaceAll('___', _current.word), speed: settings.voiceSpeed);
+      }
     }
   }
 
-  void _previousCharacter() {
+  void _previousSentence() {
     if (_currentIndex > 0) {
       setState(() {
         _currentIndex--;
         _resetState();
       });
       _canvasKey.currentState?.clear();
+      final settings = context.read<AppSettings>();
+      if (settings.voiceFeedbackEnabled) {
+        _tts.speak(_current.sentence.replaceAll('___', _current.word), speed: settings.voiceSpeed);
+      }
     }
   }
 
@@ -109,17 +121,25 @@ class _PracticeScreenState extends State<PracticeScreen> {
     });
   }
 
+  void _toggleHint() {
+    setState(() => _showHint = !_showHint);
+    if (_showHint) {
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _showHint = false);
+      });
+    }
+  }
+
   Future<void> _evaluateHandwriting() async {
     final canvasState = _canvasKey.currentState;
     if (canvasState == null || !canvasState.hasStrokes) return;
 
-    // Capture services before async gap
     final gamification = context.read<GamificationService>();
     final settings = context.read<AppSettings>();
 
     setState(() {
       _isEvaluating = true;
-      _resultReady = true; // prevent re-submission while loading
+      _resultReady = true;
     });
 
     try {
@@ -129,8 +149,9 @@ class _PracticeScreenState extends State<PracticeScreen> {
       } else {
         final imageBytes = await canvasState.exportAsImage();
         if (imageBytes != null && mounted) {
-          visionResult = await _groqService.evaluateFromImage(
-            character: _currentCharacter,
+          visionResult = await _groqService.evaluateFromImageSentence(
+            word: _current.word,
+            sentence: _current.sentence,
             imageBytes: imageBytes,
           );
         }
@@ -140,10 +161,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
         final score = visionResult.score.similarity;
         final stars = _starsForScore(score);
 
-        // Award XP and stars based on the AI score
-        gamification.processPracticeResult(_currentCharacter, score);
+        gamification.processPracticeResult('s3_${_current.word}', score);
 
-        // Reveal results and start TTS simultaneously
         final result = visionResult;
         setState(() {
           _visionResult = result;
@@ -159,12 +178,12 @@ class _PracticeScreenState extends State<PracticeScreen> {
         }
       }
     } catch (e, stack) {
-      debugPrint('[PracticeScreen] Groq Vision call failed: $e');
-      debugPrint('[PracticeScreen] Stack: $stack');
+      debugPrint('[SentencePracticeScreen] Groq call failed: $e');
+      debugPrint('[SentencePracticeScreen] Stack: $stack');
       if (mounted) {
         setState(() {
           _isEvaluating = false;
-          _resultReady = false; // allow re-submission after error
+          _resultReady = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -186,13 +205,13 @@ class _PracticeScreenState extends State<PracticeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Letter $_currentCharacter'),
+        title: const Text('Fill in the Blank'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Center(
               child: Text(
-                '${_currentIndex + 1} / ${_characters.length}',
+                '${_currentIndex + 1} / ${WordData.all.length}',
                 style: GoogleFonts.nunito(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -215,57 +234,82 @@ class _PracticeScreenState extends State<PracticeScreen> {
                   physics: locked
                       ? const NeverScrollableScrollPhysics()
                       : const ClampingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24, vertical: 16),
                   child: child,
                 ),
                 child: Column(
                   children: [
-                    // XP/Level strip
+                    // XP strip
                     const _XpStrip(),
                     const SizedBox(height: 14),
 
-                    // Buddy + animated speech bubble
+                    // Sentence card
+                    _SentenceCard(
+                      entry: _current,
+                      showHint: _showHint,
+                      onSpeakTap: () => _tts.speak(
+                        _current.sentence.replaceAll('___', _current.word),
+                        speed: context.read<AppSettings>().voiceSpeed,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Buddy
                     _BuddySection(
-                      character: _currentCharacter,
+                      word: _current.word,
                       isEvaluating: _isEvaluating,
                       visionResult: _visionResult,
                       hasDrawn: _hasDrawn,
                     ),
                     const SizedBox(height: 16),
 
-                    // Drawing area: template behind canvas.
+                    // Canvas
                     Listener(
                       behavior: HitTestBehavior.opaque,
                       onPointerDown: (_) => _lockScroll.value = true,
                       onPointerUp: (_) => _lockScroll.value = false,
                       onPointerCancel: (_) => _lockScroll.value = false,
-                      child: SizedBox(
-                        width: 280,
-                        height: 280,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            CharacterTemplate(character: _currentCharacter),
-                            DrawingCanvas(
-                              key: _canvasKey,
-                              width: 280,
-                              height: 280,
-                              onStrokesChanged: (strokes) {
-                                setState(() {
-                                  _canvasStrokeCount = strokes.length;
-                                  if (!_hasDrawn && strokes.isNotEmpty) {
-                                    _hasDrawn = true;
-                                  }
-                                });
-                              },
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final canvasW =
+                          constraints.maxWidth == double.infinity
+                              ? 360.0
+                              : constraints.maxWidth;
+                          const canvasH = 180.0;
+                          return SizedBox(
+                            width: canvasW,
+                            height: canvasH,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                _WritingGuides(
+                                    width: canvasW, height: canvasH),
+                                DrawingCanvas(
+                                  key: _canvasKey,
+                                  width: canvasW,
+                                  height: canvasH,
+                                  onStrokesChanged: (strokes) {
+                                    setState(() {
+                                      _canvasStrokeCount = strokes.length;
+                                      if (!_hasDrawn &&
+                                          strokes.isNotEmpty) {
+                                        _hasDrawn = true;
+                                      }
+                                    });
+                                  },
+                                ),
+                                if (_showHint)
+                                  _GhostWordHint(word: _current.word),
+                              ],
                             ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
                     ),
                     const SizedBox(height: 20),
 
-                    // Action buttons: Undo | Clear | Check!
+                    // Action buttons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -277,7 +321,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
                               ? _undoStroke
                               : null,
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         _ActionButton(
                           icon: Icons.refresh_rounded,
                           label: 'Clear',
@@ -286,12 +330,21 @@ class _PracticeScreenState extends State<PracticeScreen> {
                               ? _clearCanvas
                               : null,
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
+                        _ActionButton(
+                          icon: Icons.lightbulb_rounded,
+                          label: 'Hint',
+                          color: AppTheme.accentYellow,
+                          onPressed: !_isEvaluating ? _toggleHint : null,
+                        ),
+                        const SizedBox(width: 10),
                         _ActionButton(
                           icon: Icons.check_circle_rounded,
                           label: 'Check!',
                           color: AppTheme.accentGreen,
-                          onPressed: (_hasDrawn && !_isEvaluating && !_resultReady)
+                          onPressed: (_hasDrawn &&
+                              !_isEvaluating &&
+                              !_resultReady)
                               ? _evaluateHandwriting
                               : null,
                           isLoading: _isEvaluating,
@@ -300,7 +353,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Feedback panel — only visible once Groq returns
+                    // Feedback
                     if (_visionResult != null)
                       _FeedbackPanel(visionResult: _visionResult!),
                     const SizedBox(height: 20),
@@ -310,13 +363,16 @@ class _PracticeScreenState extends State<PracticeScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         OutlinedButton.icon(
-                          onPressed: _currentIndex > 0 ? _previousCharacter : null,
+                          onPressed: _currentIndex > 0
+                              ? _previousSentence
+                              : null,
                           icon: const Icon(Icons.arrow_back_rounded),
                           label: const Text('Previous'),
                         ),
                         OutlinedButton.icon(
-                          onPressed: _currentIndex < _characters.length - 1
-                              ? _nextCharacter
+                          onPressed:
+                          _currentIndex < WordData.all.length - 1
+                              ? _nextSentence
                               : null,
                           icon: const Icon(Icons.arrow_forward_rounded),
                           label: const Text('Next'),
@@ -330,7 +386,6 @@ class _PracticeScreenState extends State<PracticeScreen> {
             ),
           ),
 
-          // Star celebration overlay
           if (_showCelebration)
             _StarCelebrationOverlay(
               onComplete: () {
@@ -343,16 +398,229 @@ class _PracticeScreenState extends State<PracticeScreen> {
   }
 }
 
-// ─── Buddy Section ───────────────────────────────────────────────────────────
+// ─── Sentence Card ────────────────────────────────────────────────────────────
+
+class _SentenceCard extends StatelessWidget {
+  final WordEntry entry;
+  final bool showHint;
+  final VoidCallback onSpeakTap;
+
+  const _SentenceCard({
+    required this.entry,
+    required this.showHint,
+    required this.onSpeakTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Split sentence into parts around ___
+    final parts = entry.sentence.split('___');
+    final before = parts.isNotEmpty ? parts[0] : '';
+    final after = parts.length > 1 ? parts[1] : '';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardWhite,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryPurple.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Emoji + speak button row
+          Row(
+            children: [
+              Text(entry.emoji, style: const TextStyle(fontSize: 40)),
+              const Spacer(),
+              GestureDetector(
+                onTap: onSpeakTap,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentBlue.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.volume_up_rounded,
+                    color: AppTheme.accentBlue,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Sentence with blank highlighted
+          RichText(
+            text: TextSpan(
+              style: GoogleFonts.nunito(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.textDark,
+                height: 1.4,
+              ),
+              children: [
+                TextSpan(text: before),
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.middle,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryOrange.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppTheme.primaryOrange,
+                        width: 2,
+                      ),
+                    ),
+                    child: Text(
+                      '  ___  ',
+                      style: GoogleFonts.nunito(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.primaryOrange,
+                      ),
+                    ),
+                  ),
+                ),
+                TextSpan(text: after),
+              ],
+            ),
+          ),
+
+          // Hint
+          if (showHint) ...[
+            const SizedBox(height: 8),
+            Text(
+              '💡 The missing word is: ${entry.word}',
+              style: GoogleFonts.nunito(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textMuted,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Ghost Word Hint ──────────────────────────────────────────────────────────
+
+class _GhostWordHint extends StatelessWidget {
+  final String word;
+
+  const _GhostWordHint({required this.word});
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Center(
+        child: Text(
+          word,
+          style: GoogleFonts.nunito(
+            fontSize: 80,
+            fontWeight: FontWeight.w900,
+            color: AppTheme.primaryPurple.withValues(alpha: 0.12),
+            letterSpacing: 8,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Writing Guides ───────────────────────────────────────────────────────────
+
+class _WritingGuides extends StatelessWidget {
+  final double width;
+  final double height;
+
+  const _WritingGuides({required this.width, required this.height});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppTheme.primaryPurple.withValues(alpha: 0.2),
+          width: 2,
+        ),
+      ),
+      child: CustomPaint(painter: _GuideLinesPainter()),
+    );
+  }
+}
+
+class _GuideLinesPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppTheme.accentBlue.withValues(alpha: 0.2)
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+
+    final dashPaint = Paint()
+      ..color = AppTheme.accentPink.withValues(alpha: 0.25)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    final baselineY = size.height * 0.72;
+    canvas.drawLine(
+        Offset(16, baselineY), Offset(size.width - 16, baselineY), paint);
+
+    final midlineY = size.height * 0.38;
+    _drawDashedLine(canvas, Offset(16, midlineY),
+        Offset(size.width - 16, midlineY), dashPaint);
+  }
+
+  void _drawDashedLine(
+      Canvas canvas, Offset start, Offset end, Paint paint) {
+    const dashWidth = 8.0;
+    const dashSpace = 6.0;
+    double distance = 0;
+    final totalDistance = (end - start).distance;
+    final direction = (end - start) / totalDistance;
+
+    while (distance < totalDistance) {
+      final dashStart = start + direction * distance;
+      final dashEnd = start +
+          direction * (distance + dashWidth).clamp(0, totalDistance);
+      canvas.drawLine(dashStart, dashEnd, paint);
+      distance += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ─── Buddy Section ────────────────────────────────────────────────────────────
 
 class _BuddySection extends StatelessWidget {
-  final String character;
+  final String word;
   final bool isEvaluating;
   final VisionResult? visionResult;
   final bool hasDrawn;
 
   const _BuddySection({
-    required this.character,
+    required this.word,
     required this.isEvaluating,
     required this.visionResult,
     required this.hasDrawn,
@@ -360,9 +628,9 @@ class _BuddySection extends StatelessWidget {
 
   String _bubbleMessage(BuddyData buddy) {
     if (visionResult != null) return visionResult!.encouragement;
-    if (isEvaluating) return 'Checking your writing... \uD83D\uDD0D';
-    if (hasDrawn) return 'Looking good! Tap Check when you\'re ready! \u2705';
-    return 'Write the letter $character! ${buddy.idleMessage}';
+    if (isEvaluating) return 'Checking your word... 🔍';
+    if (hasDrawn) return 'Great try! Tap Check when ready! ✅';
+    return 'Write the missing word! ${buddy.idleMessage}';
   }
 
   @override
@@ -428,11 +696,13 @@ class _SpeechBubble extends StatelessWidget {
         ),
         Expanded(
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             decoration: BoxDecoration(
               color: AppTheme.cardWhite,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: color.withValues(alpha: 0.5), width: 2),
+              border:
+              Border.all(color: color.withValues(alpha: 0.5), width: 2),
               boxShadow: [
                 BoxShadow(
                   color: color.withValues(alpha: 0.12),
@@ -499,10 +769,11 @@ class _BubbleTailPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _BubbleTailPainter old) => old.color != color;
+  bool shouldRepaint(covariant _BubbleTailPainter old) =>
+      old.color != color;
 }
 
-// ─── XP Strip ────────────────────────────────────────────────────────────────
+// ─── XP Strip ─────────────────────────────────────────────────────────────────
 
 class _XpStrip extends StatelessWidget {
   const _XpStrip();
@@ -511,7 +782,8 @@ class _XpStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<GamificationService>(
       builder: (context, gam, _) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding:
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: AppTheme.cardWhite,
           borderRadius: BorderRadius.circular(20),
@@ -540,8 +812,10 @@ class _XpStrip extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: gam.levelProgress,
                   minHeight: 10,
-                  backgroundColor: AppTheme.primaryPurple.withValues(alpha: 0.15),
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryPurple),
+                  backgroundColor:
+                  AppTheme.primaryPurple.withValues(alpha: 0.15),
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppTheme.primaryPurple),
                 ),
               ),
             ),
@@ -556,7 +830,7 @@ class _XpStrip extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              '\u2B50 ${gam.totalStars}',
+              '⭐ ${gam.totalStars}',
               style: GoogleFonts.nunito(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
@@ -574,11 +848,11 @@ class _XpStrip extends StatelessWidget {
 
 class _StarCelebrationOverlay extends StatefulWidget {
   final VoidCallback onComplete;
-
   const _StarCelebrationOverlay({required this.onComplete});
 
   @override
-  State<_StarCelebrationOverlay> createState() => _StarCelebrationOverlayState();
+  State<_StarCelebrationOverlay> createState() =>
+      _StarCelebrationOverlayState();
 }
 
 class _StarCelebrationOverlayState extends State<_StarCelebrationOverlay>
@@ -592,27 +866,16 @@ class _StarCelebrationOverlayState extends State<_StarCelebrationOverlay>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    );
-    _scale = Tween<double>(begin: 0.0, end: 1.4).animate(
-      CurvedAnimation(
+        vsync: this, duration: const Duration(milliseconds: 1800));
+    _scale = Tween<double>(begin: 0.0, end: 1.4).animate(CurvedAnimation(
         parent: _ctrl,
-        curve: const Interval(0.0, 0.45, curve: Curves.elasticOut),
-      ),
-    );
-    _opacity = Tween<double>(begin: 1.0, end: 0.0).animate(
-      CurvedAnimation(
+        curve: const Interval(0.0, 0.45, curve: Curves.elasticOut)));
+    _opacity = Tween<double>(begin: 1.0, end: 0.0).animate(CurvedAnimation(
         parent: _ctrl,
-        curve: const Interval(0.55, 1.0, curve: Curves.easeIn),
-      ),
-    );
-    _dy = Tween<double>(begin: 0.0, end: -70.0).animate(
-      CurvedAnimation(
+        curve: const Interval(0.55, 1.0, curve: Curves.easeIn)));
+    _dy = Tween<double>(begin: 0.0, end: -70.0).animate(CurvedAnimation(
         parent: _ctrl,
-        curve: const Interval(0.35, 1.0, curve: Curves.easeOut),
-      ),
-    );
+        curve: const Interval(0.35, 1.0, curve: Curves.easeOut)));
     _ctrl.forward().then((_) => widget.onComplete());
   }
 
@@ -634,10 +897,8 @@ class _StarCelebrationOverlayState extends State<_StarCelebrationOverlay>
               offset: Offset(0, _dy.value),
               child: Transform.scale(
                 scale: _scale.value,
-                child: const Text(
-                  '\u2B50\u2B50\u2B50',
-                  style: TextStyle(fontSize: 60),
-                ),
+                child: const Text('⭐⭐⭐',
+                    style: TextStyle(fontSize: 60)),
               ),
             ),
           ),
@@ -676,36 +937,32 @@ class _ActionButton extends StatelessWidget {
             onTap: onPressed,
             borderRadius: BorderRadius.circular(20),
             child: Container(
-              width: 64,
-              height: 64,
+              width: 60,
+              height: 60,
               decoration: BoxDecoration(
-                color: onPressed != null ? color : color.withValues(alpha: 0.4),
+                color: onPressed != null
+                    ? color
+                    : color.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Center(
                 child: isLoading
                     ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 3,
-                        ),
-                      )
-                    : Icon(icon, color: Colors.white, size: 32),
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 3))
+                    : Icon(icon, color: Colors.white, size: 28),
               ),
             ),
           ),
         ),
         const SizedBox(height: 6),
-        Text(
-          label,
-          style: GoogleFonts.nunito(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.textMuted,
-          ),
-        ),
+        Text(label,
+            style: GoogleFonts.nunito(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textMuted)),
       ],
     );
   }
@@ -737,11 +994,8 @@ class _FeedbackPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Star rating from Groq score
           _buildScoreStars(visionResult.score.similarity),
           const SizedBox(height: 12),
-
-          // Encouragement headline
           Text(
             visionResult.encouragement,
             style: GoogleFonts.nunito(
@@ -751,8 +1005,6 @@ class _FeedbackPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-
-          // Detailed feedback
           Text(
             visionResult.detailedFeedback,
             style: GoogleFonts.nunito(
@@ -762,34 +1014,26 @@ class _FeedbackPanel extends StatelessWidget {
               height: 1.5,
             ),
           ),
-
-          // Tips
           if (visionResult.tips.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Text(
-              'Tips:',
-              style: GoogleFonts.nunito(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.primaryPurple,
-              ),
-            ),
+            Text('Tips:',
+                style: GoogleFonts.nunito(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primaryPurple)),
             ...visionResult.tips.map(
-              (tip) => Padding(
+                  (tip) => Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('\uD83D\uDCA1 ', style: TextStyle(fontSize: 14)),
+                    const Text('💡 ', style: TextStyle(fontSize: 14)),
                     Expanded(
-                      child: Text(
-                        tip,
-                        style: GoogleFonts.nunito(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textMuted,
-                        ),
-                      ),
+                      child: Text(tip,
+                          style: GoogleFonts.nunito(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textMuted)),
                     ),
                   ],
                 ),
@@ -807,7 +1051,7 @@ class _FeedbackPanel extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(
         5,
-        (i) => Padding(
+            (i) => Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Icon(
             i < starCount ? Icons.star_rounded : Icons.star_outline_rounded,

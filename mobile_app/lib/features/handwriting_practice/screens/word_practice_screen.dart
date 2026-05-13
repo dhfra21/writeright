@@ -8,6 +8,7 @@ import '../../../services/gamification/gamification_service.dart';
 import '../../../services/ml_inference/groq_vision_service.dart';
 import '../../../services/tts/tts_service.dart';
 import '../widgets/drawing_canvas.dart';
+import '../../../core/state/app_settings.dart';
 
 class WordPracticeScreen extends StatefulWidget {
   final int initialIndex;
@@ -47,7 +48,10 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
     );
     // Speak the word aloud when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _tts.speak(_currentWord.word);
+      final settings = context.read<AppSettings>();
+      if (settings.voiceFeedbackEnabled) {
+        _tts.speak(_currentWord.word, speed: settings.voiceSpeed);
+      }
     });
   }
 
@@ -76,7 +80,10 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
         _resetState();
       });
       _canvasKey.currentState?.clear();
-      _tts.speak(_currentWord.word);
+      final settings = context.read<AppSettings>();
+      if (settings.voiceFeedbackEnabled) {
+        _tts.speak(_currentWord.word, speed: settings.voiceSpeed);
+      }
     }
   }
 
@@ -87,7 +94,10 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
         _resetState();
       });
       _canvasKey.currentState?.clear();
-      _tts.speak(_currentWord.word);
+      final settings = context.read<AppSettings>();
+      if (settings.voiceFeedbackEnabled) {
+        _tts.speak(_currentWord.word, speed: settings.voiceSpeed);
+      }
     }
   }
 
@@ -127,6 +137,7 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
     if (canvasState == null || !canvasState.hasStrokes) return;
 
     final gamification = context.read<GamificationService>();
+    final settings = context.read<AppSettings>();
 
     setState(() {
       _isEvaluating = true;
@@ -134,29 +145,36 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
     });
 
     try {
-      final imageBytes = await canvasState.exportAsImage();
-      if (imageBytes != null && mounted) {
-        final visionResult = await _groqService.evaluateFromImage(
-          // Pass word context so AI knows what to evaluate
-          character: _currentWord.word,
-          imageBytes: imageBytes,
-        );
+      VisionResult? visionResult;
+      if (!settings.aiEvaluationEnabled) {
+        visionResult = _groqService.fallbackResult();
+      } else {
+        final imageBytes = await canvasState.exportAsImage();
+        if (imageBytes != null && mounted) {
+          visionResult = await _groqService.evaluateFromImage(
+            character: _currentWord.word,
+            imageBytes: imageBytes,
+          );
+        }
+      }
 
-        if (mounted) {
-          final score = visionResult.score.similarity;
-          final stars = _starsForScore(score);
+      if (visionResult != null && mounted) {
+        final score = visionResult.score.similarity;
+        final stars = _starsForScore(score);
 
-          gamification.processPracticeResult(_currentWord.word, score);
+        gamification.processPracticeResult(_currentWord.word, score);
 
-          setState(() {
-            _visionResult = visionResult;
-            _isEvaluating = false;
-            if (stars >= 2) _showCelebration = true;
-          });
+        final result = visionResult;
+        setState(() {
+          _visionResult = result;
+          _isEvaluating = false;
+          if (stars >= 2) _showCelebration = true;
+        });
 
-          // Speak encouragement + word again
+        if (settings.voiceFeedbackEnabled) {
           _tts.speak(
-            '${visionResult.encouragement}. ${visionResult.detailedFeedback}',
+            '${result.encouragement}. ${result.detailedFeedback}',
+            speed: settings.voiceSpeed,
           );
         }
       }
@@ -218,7 +236,7 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
                       entry: _currentWord,
                       showHint: _showHint,
                       onHintTap: _toggleHint,
-                      onSpeakTap: () => _tts.speak(_currentWord.word),
+                      onSpeakTap: () => _tts.speak(_currentWord.word, speed: context.read<AppSettings>().voiceSpeed),
                     ),
                     const SizedBox(height: 12),
 

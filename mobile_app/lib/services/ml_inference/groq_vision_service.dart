@@ -39,7 +39,7 @@ class GroqVisionService implements MLInferenceService {
     if (_apiKey.isEmpty) {
       debugPrint('[GroqVision] ✗ API key is empty! '
           'Run with: flutter run --dart-define=GROQ_API_KEY=your_key_here');
-      return _fallbackResult();
+      return fallbackResult();
     }
 
     final base64Image = base64Encode(imageBytes);
@@ -90,12 +90,12 @@ class GroqVisionService implements MLInferenceService {
       } else {
         debugPrint('[GroqVision] ✗ Non-200 status. Response body:');
         debugPrint(response.body);
-        return _fallbackResult();
+        return fallbackResult();
       }
     } catch (e, stack) {
       debugPrint('[GroqVision] ✗ Network/exception error: $e');
       debugPrint('[GroqVision]   Stack: $stack');
-      return _fallbackResult();
+      return fallbackResult();
     }
   }
 
@@ -124,6 +124,97 @@ Additional rules:
 - Use simple words a 5-year-old can understand.
 - Always be kind and positive, even when the wrong letter is written.
 - If wrong letter: feedback must clearly but gently name the correct letter "$character".
+- Include fun emojis in encouragement.''';
+  }
+
+
+  Future<VisionResult> evaluateFromImageSentence({
+    required String word,
+    required String sentence,
+    required List<int> imageBytes,
+  }) async {
+    if (_apiKey.isEmpty) return fallbackResult();
+
+    final base64Image = base64Encode(imageBytes);
+
+    final requestBody = {
+      'model': _model,
+      'max_tokens': 400,
+      'messages': [
+        {
+          'role': 'user',
+          'content': [
+            {
+              'type': 'image_url',
+              'image_url': {
+                'url': 'data:image/png;base64,$base64Image',
+              },
+            },
+            {
+              'type': 'text',
+              'text': _buildSentencePrompt(word, sentence),
+            },
+          ],
+        },
+      ],
+    };
+
+    debugPrint('[GroqVision] >>> Sentence evaluation for "$word" in "$sentence"');
+
+    try {
+      final response = await http.post(
+        Uri.parse(_baseUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_apiKey',
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      debugPrint('[GroqVision] <<< HTTP ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return _parseResponse(data, word);
+      } else {
+        debugPrint('[GroqVision] ✗ Non-200: ${response.body}');
+        return fallbackResult();
+      }
+    } catch (e, stack) {
+      debugPrint('[GroqVision] ✗ Error: $e\n$stack');
+      return fallbackResult();
+    }
+  }
+
+  String _buildSentencePrompt(String word, String sentence) {
+    return '''You are a handwriting teacher for young children (ages 4-8).
+The child is completing a fill-in-the-blank sentence.
+ 
+Sentence: "$sentence"
+The correct missing word is: "$word"
+ 
+The child has written their answer on the canvas. Your job is to:
+Step 1 — Read: Look at the handwritten word on the canvas.
+Step 2 — Compare: Does it match "$word"?
+Step 3 — Score:
+  - If the word does NOT match "$word" → score 0-30. Kindly tell the child the correct answer is "$word".
+  - If the word matches "$word" (even roughly written) → score 50-100 based on how legible it is.
+ 
+Respond ONLY with this exact JSON object, no extra text:
+{
+  "identified_letter": "<the word you see written, or 'unclear'>",
+  "correct_letter": <true if it matches "$word", else false>,
+  "score": <0-100>,
+  "feedback": "<one short sentence, max 15 words>",
+  "detailed_feedback": "<2-3 sentences>",
+  "encouragement": "<motivating phrase with emoji>",
+  "tips": ["<tip 1>", "<tip 2>"]
+}
+ 
+Rules:
+- Use simple words a 5-year-old understands.
+- Always be kind and positive.
+- If wrong: gently tell them the answer is "$word".
 - Include fun emojis in encouragement.''';
   }
 
@@ -178,11 +269,11 @@ Additional rules:
     } catch (e, stack) {
       debugPrint('[GroqVision] ✗ Failed to parse response: $e');
       debugPrint('[GroqVision]   Stack: $stack');
-      return _fallbackResult();
+      return fallbackResult();
     }
   }
 
-  VisionResult _fallbackResult() {
+  VisionResult fallbackResult() {
     return VisionResult(
       score: HandwritingScore(
         similarity: 0.5,
