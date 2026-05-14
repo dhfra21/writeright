@@ -8,9 +8,11 @@ class AppConstants {
   /// Canvas dimensions
   static const double canvasSize = 280.0;
 
-  /// Claude Vision API endpoint
-  static const String claudeApiUrl = 'https://api.anthropic.com/v1/messages';
+  /// Backend evaluate endpoint (set via --dart-define=BACKEND_URL=https://...)
+  static const String backendBaseUrl = String.fromEnvironment(
+    'BACKEND_URL',
+    defaultValue: 'http://10.0.2.2:3000',
+  );
 
-  /// Claude model to use for handwriting evaluation
-  static const String claudeModel = 'claude-sonnet-4-20250514';
+  static String get evaluateEndpoint => '$backendBaseUrl/api/v1/evaluate';
 }

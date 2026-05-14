@@ -6,6 +6,9 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/buddy_data.dart';
 import '../../../services/gamification/gamification_service.dart';
 import '../../../services/ml_inference/groq_vision_service.dart';
+import '../../../services/ml_inference/ml_inference_service.dart';
+import '../../../services/ml_inference/backend_evaluation_service.dart';
+import '../../../services/ml_inference/distance_based_service.dart';
 import '../../../services/tts/tts_service.dart';
 import '../widgets/drawing_canvas.dart';
 import '../widgets/character_template.dart';
@@ -33,7 +36,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
   final TtsService _tts = TtsService();
   final AudioPlayer _audioPlayer = AudioPlayer();
   final ScrollController _scrollController = ScrollController();
-  late final GroqVisionService _groqService;
+  final BackendEvaluationService _backendService = BackendEvaluationService();
+  final DistanceBasedService _distanceService = DistanceBasedService();
 
   bool _isEvaluating = false;
   bool _hasDrawn = false;
@@ -41,15 +45,13 @@ class _PracticeScreenState extends State<PracticeScreen> {
   final _lockScroll = ValueNotifier<bool>(false);
   int _canvasStrokeCount = 0;
   VisionResult? _visionResult;
+  double? _localScore; // distance-based score shown while AI loads
   bool _showCelebration = false;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
-    _groqService = GroqVisionService(
-      apiKey: const String.fromEnvironment('GROQ_API_KEY'),
-    );
   }
 
   @override
@@ -64,6 +66,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
   void _resetState() {
     _tts.stop();
     _visionResult = null;
+    _localScore = null;
     _hasDrawn = false;
     _resultReady = false;
     _isEvaluating = false;
@@ -95,6 +98,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
     _canvasKey.currentState?.clear();
     setState(() {
       _visionResult = null;
+      _localScore = null;
       _hasDrawn = false;
       _resultReady = false;
       _isEvaluating = false;
@@ -125,38 +129,68 @@ class _PracticeScreenState extends State<PracticeScreen> {
       _resultReady = true; // prevent re-submission while loading
     });
 
+    // ── Step 1: Immediate local score (offline, no network) ──────────────────
+    final strokes = canvasState.strokes;
+    final localRaw = _distanceService.evaluate(_currentCharacter, strokes);
+    if (localRaw != null && mounted) {
+      setState(() => _localScore = localRaw);
+      debugPrint('[PracticeScreen] Local distance score: ${localRaw.toStringAsFixed(1)}');
+    }
+
     try {
       VisionResult? visionResult;
+
       if (!settings.aiEvaluationEnabled) {
-        debugPrint('[PracticeScreen] aiEvaluationEnabled=false → using fallback (check Settings)');
-        visionResult = _groqService.fallbackResult();
+        debugPrint('[PracticeScreen] aiEvaluationEnabled=false → using fallback');
+        visionResult = _makeFallbackResult(_localScore ?? 50.0);
       } else {
+        // ── Step 2: Export canvas PNG ─────────────────────────────────────────
         final imageBytes = await canvasState.exportAsImage();
         debugPrint('[PracticeScreen] imageBytes=${imageBytes?.length ?? "null"}');
+
         if (imageBytes != null && mounted) {
-          visionResult = await _groqService.evaluateFromImage(
+          // ── Step 3: Backend POST /evaluate ────────────────────────────────
+          final aiResult = await _backendService.evaluate(
             character: _currentCharacter,
             imageBytes: imageBytes,
+            exerciseType: 'letter',
+          );
+
+          // ── Step 4: Combine scores (40% local, 60% AI) ───────────────────
+          final aiScore = aiResult.score.similarity * 100.0;
+          final combinedScore = localRaw != null
+              ? 0.4 * localRaw + 0.6 * aiScore
+              : aiScore;
+
+          debugPrint('[PracticeScreen] AI score: ${aiScore.toStringAsFixed(1)}, '
+              'combined: ${combinedScore.toStringAsFixed(1)}');
+
+          visionResult = VisionResult(
+            score: HandwritingScore(
+              similarity: combinedScore / 100.0,
+              correctness: aiResult.score.correctness,
+              feedback: aiResult.score.feedback,
+            ),
+            detailedFeedback: aiResult.detailedFeedback,
+            encouragement: aiResult.encouragement,
+            tips: aiResult.tips,
           );
         }
       }
 
       if (visionResult != null && mounted) {
-        final score = visionResult.score.similarity;
-        final stars = _starsForScore(score);
+        final finalScore = visionResult.score.similarity;
+        final stars = _starsForScore(finalScore);
 
-        // Award XP and stars based on the AI score
-        gamification.processPracticeResult(_currentCharacter, score);
+        gamification.processPracticeResult(_currentCharacter, finalScore);
 
-        // Reveal results and start TTS simultaneously
-        final result = visionResult;
         setState(() {
-          _visionResult = result;
+          _visionResult = visionResult;
           _isEvaluating = false;
-          if (stars >= 2) _showCelebration = true;
+          if (stars >= 3) _showCelebration = true;
         });
 
-        if (stars >= 2) {
+        if (stars >= 3) {
           _audioPlayer.play(
             AssetSource('sounds/WIN sound effect no copyright.mp3'),
           );
@@ -164,13 +198,13 @@ class _PracticeScreenState extends State<PracticeScreen> {
 
         if (settings.voiceFeedbackEnabled) {
           _tts.speak(
-            '${result.encouragement}. ${result.detailedFeedback}',
+            '${visionResult.encouragement}. ${visionResult.detailedFeedback}',
             speed: settings.voiceSpeed,
           );
         }
       }
     } on GroqRateLimitException catch (e) {
-      debugPrint('[PracticeScreen] Groq rate limited: $e');
+      debugPrint('[PracticeScreen] Rate limited: $e');
       if (mounted) {
         setState(() {
           _isEvaluating = false;
@@ -185,9 +219,18 @@ class _PracticeScreenState extends State<PracticeScreen> {
         );
       }
     } catch (e, stack) {
-      debugPrint('[PracticeScreen] Groq Vision call failed: $e');
-      debugPrint('[PracticeScreen] Stack: $stack');
-      if (mounted) {
+      debugPrint('[PracticeScreen] Evaluation failed: $e\n$stack');
+      // Fall back to showing just the local score if AI fails
+      if (_localScore != null && mounted) {
+        final fallback = _makeFallbackResult(_localScore!);
+        final stars = _starsForScore(fallback.score.similarity);
+        gamification.processPracticeResult(_currentCharacter, fallback.score.similarity);
+        setState(() {
+          _visionResult = fallback;
+          _isEvaluating = false;
+          if (stars >= 3) _showCelebration = true;
+        });
+      } else if (mounted) {
         setState(() {
           _isEvaluating = false;
           _resultReady = false;
@@ -201,11 +244,40 @@ class _PracticeScreenState extends State<PracticeScreen> {
     }
   }
 
-  int _starsForScore(double score) {
-    if (score >= 0.8) return 3;
-    if (score >= 0.5) return 2;
-    if (score > 0.0) return 1;
-    return 0;
+  VisionResult _makeFallbackResult(double rawScore) {
+    final sim = rawScore / 100.0;
+    String encouragement;
+    String feedback;
+    if (rawScore >= 80) {
+      encouragement = 'Amazing job! ⭐⭐⭐';
+      feedback = 'Your letter looks great! Keep it up!';
+    } else if (rawScore >= 50) {
+      encouragement = 'Good effort! Keep practicing! ✨';
+      feedback = 'You are getting better. Try to match the guide letter.';
+    } else {
+      encouragement = 'Keep trying! You can do it! 💪';
+      feedback = 'Try to follow the dotted guide and write the letter again.';
+    }
+    return VisionResult(
+      score: HandwritingScore(
+        similarity: sim,
+        correctness: sim,
+        feedback: feedback,
+      ),
+      detailedFeedback: feedback,
+      encouragement: encouragement,
+      tips: ['Trace the guide letter slowly.', 'Lift your pencil between strokes.'],
+    );
+  }
+
+  /// Maps a 0–1 similarity score to 1–5 stars.
+  int _starsForScore(double similarity) {
+    final pct = similarity * 100;
+    if (pct >= 80) return 5;
+    if (pct >= 60) return 4;
+    if (pct >= 40) return 3;
+    if (pct >= 20) return 2;
+    return 1;
   }
 
   @override
@@ -827,8 +899,15 @@ class _FeedbackPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildScoreStars(double score) {
-    final starCount = (score * 5).round().clamp(0, 5);
+  Widget _buildScoreStars(double similarity) {
+    final pct = similarity * 100;
+    int starCount;
+    if (pct >= 80) starCount = 5;
+    else if (pct >= 60) starCount = 4;
+    else if (pct >= 40) starCount = 3;
+    else if (pct >= 20) starCount = 2;
+    else starCount = 1;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(

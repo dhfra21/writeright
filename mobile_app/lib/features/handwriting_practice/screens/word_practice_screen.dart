@@ -6,7 +6,9 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/buddy_data.dart';
 import '../../../core/constants/word_data.dart';
 import '../../../services/gamification/gamification_service.dart';
+import '../../../services/ml_inference/backend_evaluation_service.dart';
 import '../../../services/ml_inference/groq_vision_service.dart';
+import '../../../services/ml_inference/ml_inference_service.dart';
 import '../../../services/tts/tts_service.dart';
 import '../widgets/drawing_canvas.dart';
 import '../../../core/state/app_settings.dart';
@@ -30,7 +32,7 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
   final TtsService _tts = TtsService();
   final AudioPlayer _audioPlayer = AudioPlayer();
   final ScrollController _scrollController = ScrollController();
-  late final GroqVisionService _groqService;
+  final BackendEvaluationService _backendService = BackendEvaluationService();
 
   bool _isEvaluating = false;
   bool _hasDrawn = false;
@@ -45,10 +47,6 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
-    _groqService = GroqVisionService(
-      apiKey: const String.fromEnvironment('GROQ_API_KEY'),
-    );
-    // Speak the word aloud when screen opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final settings = context.read<AppSettings>();
       if (settings.voiceFeedbackEnabled) {
@@ -148,52 +146,52 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
     });
 
     try {
-      VisionResult? visionResult;
+      final VisionResult visionResult;
+
       if (!settings.aiEvaluationEnabled) {
-        visionResult = _groqService.fallbackResult();
+        visionResult = VisionResult(
+          score: HandwritingScore(similarity: 0.5, correctness: 0.5, feedback: 'Nice try!'),
+          detailedFeedback: 'You are learning well. Practice makes perfect!',
+          encouragement: 'You are a writing superstar! ⭐',
+          tips: ['Try to trace the word slowly.'],
+        );
       } else {
         final imageBytes = await canvasState.exportAsImage();
-        if (imageBytes != null && mounted) {
-          visionResult = await _groqService.evaluateFromImage(
-            character: _currentWord.word,
-            imageBytes: imageBytes,
-          );
-        }
+        if (imageBytes == null || !mounted) return;
+
+        visionResult = await _backendService.evaluate(
+          character: _currentWord.word,
+          imageBytes: imageBytes,
+          exerciseType: 'word',
+        );
       }
 
-      if (visionResult != null && mounted) {
-        final score = visionResult.score.similarity;
-        final stars = _starsForScore(score);
+      if (!mounted) return;
+      final score = visionResult.score.similarity;
+      final stars = _starsForScore(score);
 
-        gamification.processPracticeResult(_currentWord.word, score);
+      gamification.processPracticeResult(_currentWord.word, score);
 
-        final result = visionResult;
-        setState(() {
-          _visionResult = result;
-          _isEvaluating = false;
-          if (stars >= 2) _showCelebration = true;
-        });
+      setState(() {
+        _visionResult = visionResult;
+        _isEvaluating = false;
+        if (stars >= 3) _showCelebration = true;
+      });
 
-        if (stars >= 2) {
-          _audioPlayer.play(
-            AssetSource('sounds/WIN sound effect no copyright.mp3'),
-          );
-        }
+      if (stars >= 3) {
+        _audioPlayer.play(AssetSource('sounds/WIN sound effect no copyright.mp3'));
+      }
 
-        if (settings.voiceFeedbackEnabled) {
-          _tts.speak(
-            '${result.encouragement}. ${result.detailedFeedback}',
-            speed: settings.voiceSpeed,
-          );
-        }
+      if (settings.voiceFeedbackEnabled) {
+        _tts.speak(
+          '${visionResult.encouragement}. ${visionResult.detailedFeedback}',
+          speed: settings.voiceSpeed,
+        );
       }
     } on GroqRateLimitException catch (e) {
-      debugPrint('[WordPracticeScreen] Groq rate limited: $e');
+      debugPrint('[WordPracticeScreen] Rate limited: $e');
       if (mounted) {
-        setState(() {
-          _isEvaluating = false;
-          _resultReady = false;
-        });
+        setState(() { _isEvaluating = false; _resultReady = false; });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('AI is taking a short break. Wait a moment and try again!'),
@@ -203,22 +201,18 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
         );
       }
     } catch (e, stack) {
-      debugPrint('[WordPracticeScreen] Groq Vision call failed: $e');
-      debugPrint('[WordPracticeScreen] Stack: $stack');
-      if (mounted) {
-        setState(() {
-          _isEvaluating = false;
-          _resultReady = false;
-        });
-      }
+      debugPrint('[WordPracticeScreen] Evaluation failed: $e\n$stack');
+      if (mounted) setState(() { _isEvaluating = false; _resultReady = false; });
     }
   }
 
-  int _starsForScore(double score) {
-    if (score >= 0.8) return 3;
-    if (score >= 0.5) return 2;
-    if (score > 0.0) return 1;
-    return 0;
+  int _starsForScore(double similarity) {
+    final pct = similarity * 100;
+    if (pct >= 80) return 5;
+    if (pct >= 60) return 4;
+    if (pct >= 40) return 3;
+    if (pct >= 20) return 2;
+    return 1;
   }
 
   @override
@@ -1072,8 +1066,15 @@ class _FeedbackPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildScoreStars(double score) {
-    final starCount = (score * 5).round().clamp(0, 5);
+  Widget _buildScoreStars(double similarity) {
+    final pct = similarity * 100;
+    int starCount;
+    if (pct >= 80) starCount = 5;
+    else if (pct >= 60) starCount = 4;
+    else if (pct >= 40) starCount = 3;
+    else if (pct >= 20) starCount = 2;
+    else starCount = 1;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(
@@ -1081,9 +1082,7 @@ class _FeedbackPanel extends StatelessWidget {
         (i) => Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Icon(
-            i < starCount
-                ? Icons.star_rounded
-                : Icons.star_outline_rounded,
+            i < starCount ? Icons.star_rounded : Icons.star_outline_rounded,
             color: i < starCount
                 ? AppTheme.accentYellow
                 : AppTheme.textMuted.withValues(alpha: 0.3),

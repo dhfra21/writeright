@@ -46,6 +46,10 @@ class DrawingCanvasState extends State<DrawingCanvas> {
   /// Returns the current number of strokes.
   int get strokeCount => _strokes.length;
 
+  /// Returns a copy of all strokes for external evaluation.
+  List<List<Offset>> get strokes =>
+      _strokes.map((s) => s.toList()).toList();
+
   /// Removes the last stroke (undo).
   void undo() {
     if (_strokes.isNotEmpty) {
