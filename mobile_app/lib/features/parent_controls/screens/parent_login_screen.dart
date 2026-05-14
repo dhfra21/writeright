@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../core/state/app_state.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../screens/parent_dashboard_screen.dart';
+import '../../../screens/home_screen.dart';
 import '../../../services/auth/auth_service.dart';
 import '../../../services/children/children_service.dart';
 import 'parent_registration_screen.dart';
@@ -60,7 +60,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
 
       // Navigate to dashboard
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const ParentDashboardScreen()),
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
         (route) => false,
       );
     } else if (result.error != 'Sign in aborted') {
@@ -103,7 +103,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
 
       // Navigate to dashboard
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const ParentDashboardScreen()),
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
         (route) => false,
       );
     } else {

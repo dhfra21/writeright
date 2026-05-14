@@ -128,9 +128,11 @@ class _PracticeScreenState extends State<PracticeScreen> {
     try {
       VisionResult? visionResult;
       if (!settings.aiEvaluationEnabled) {
+        debugPrint('[PracticeScreen] aiEvaluationEnabled=false → using fallback (check Settings)');
         visionResult = _groqService.fallbackResult();
       } else {
         final imageBytes = await canvasState.exportAsImage();
+        debugPrint('[PracticeScreen] imageBytes=${imageBytes?.length ?? "null"}');
         if (imageBytes != null && mounted) {
           visionResult = await _groqService.evaluateFromImage(
             character: _currentCharacter,
@@ -167,13 +169,28 @@ class _PracticeScreenState extends State<PracticeScreen> {
           );
         }
       }
+    } on GroqRateLimitException catch (e) {
+      debugPrint('[PracticeScreen] Groq rate limited: $e');
+      if (mounted) {
+        setState(() {
+          _isEvaluating = false;
+          _resultReady = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('AI is taking a short break. Wait a moment and try again!'),
+            duration: const Duration(seconds: 4),
+            backgroundColor: Colors.orange[700],
+          ),
+        );
+      }
     } catch (e, stack) {
       debugPrint('[PracticeScreen] Groq Vision call failed: $e');
       debugPrint('[PracticeScreen] Stack: $stack');
       if (mounted) {
         setState(() {
           _isEvaluating = false;
-          _resultReady = false; // allow re-submission after error
+          _resultReady = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

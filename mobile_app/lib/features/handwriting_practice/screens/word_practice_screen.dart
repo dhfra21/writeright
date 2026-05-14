@@ -187,10 +187,30 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
           );
         }
       }
+    } on GroqRateLimitException catch (e) {
+      debugPrint('[WordPracticeScreen] Groq rate limited: $e');
+      if (mounted) {
+        setState(() {
+          _isEvaluating = false;
+          _resultReady = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('AI is taking a short break. Wait a moment and try again!'),
+            duration: const Duration(seconds: 4),
+            backgroundColor: Colors.orange[700],
+          ),
+        );
+      }
     } catch (e, stack) {
       debugPrint('[WordPracticeScreen] Groq Vision call failed: $e');
       debugPrint('[WordPracticeScreen] Stack: $stack');
-      if (mounted) setState(() => _isEvaluating = false);
+      if (mounted) {
+        setState(() {
+          _isEvaluating = false;
+          _resultReady = false;
+        });
+      }
     }
   }
 

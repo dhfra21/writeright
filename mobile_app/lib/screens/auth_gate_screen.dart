@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/state/app_state.dart';
-import '../features/parent_controls/screens/parent_login_screen.dart';
 import '../services/children/children_service.dart';
-import 'parent_dashboard_screen.dart';
+import 'home_screen.dart';
 
 /// Auth gate that determines initial route based on authentication state.
 /// Shows loading while checking auth, then routes to:
@@ -38,32 +37,26 @@ class _AuthGateScreenState extends State<AuthGateScreen> {
 
       if (!mounted) return;
 
-      // If logged in, load children
+      // Preload children if already logged in
       if (appState.isLoggedIn && appState.accessToken != null) {
-        final children = await _childrenService.getChildren(appState.accessToken!);
-
-        if (!mounted) return;
-
-        // If has children, select the first one by default
-        if (children.isNotEmpty) {
-          appState.selectChild(children.first);
-        }
-
-        // Navigate to dashboard
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const ParentDashboardScreen()),
-        );
-      } else {
-        // Not logged in, show login screen
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const ParentLoginScreen()),
-        );
+        try {
+          final children = await _childrenService.getChildren(appState.accessToken!);
+          if (!mounted) return;
+          if (children.isNotEmpty) {
+            appState.selectChild(children.first);
+          }
+        } catch (_) {}
       }
+
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
     } catch (e) {
       debugPrint('[AuthGate] _checkAuthState error: $e');
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const ParentLoginScreen()),
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
     }
   }

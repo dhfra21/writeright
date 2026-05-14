@@ -177,6 +177,21 @@ class _SentencePracticeScreenState extends State<SentencePracticeScreen> {
           );
         }
       }
+    } on GroqRateLimitException catch (e) {
+      debugPrint('[SentencePracticeScreen] Groq rate limited: $e');
+      if (mounted) {
+        setState(() {
+          _isEvaluating = false;
+          _resultReady = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('AI is taking a short break. Wait a moment and try again!'),
+            duration: const Duration(seconds: 4),
+            backgroundColor: Colors.orange[700],
+          ),
+        );
+      }
     } catch (e, stack) {
       debugPrint('[SentencePracticeScreen] Groq call failed: $e');
       debugPrint('[SentencePracticeScreen] Stack: $stack');

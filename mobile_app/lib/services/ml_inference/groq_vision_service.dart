@@ -3,6 +3,13 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'ml_inference_service.dart';
 
+class GroqRateLimitException implements Exception {
+  final String message;
+  const GroqRateLimitException([this.message = 'Rate limit reached. Please wait a moment and try again.']);
+  @override
+  String toString() => message;
+}
+
 /// Groq Vision service using Llama 3.2 Vision for handwriting feedback.
 /// Uses Groq's OpenAI-compatible API endpoint (free tier).
 class GroqVisionService implements MLInferenceService {
@@ -87,11 +94,15 @@ class GroqVisionService implements MLInferenceService {
         debugPrint(response.body);
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         return _parseResponse(data, character);
+      } else if (response.statusCode == 429) {
+        debugPrint('[GroqVision] ✗ Rate limited (429). Body: ${response.body}');
+        throw const GroqRateLimitException();
       } else {
-        debugPrint('[GroqVision] ✗ Non-200 status. Response body:');
-        debugPrint(response.body);
+        debugPrint('[GroqVision] ✗ HTTP ${response.statusCode}. Body: ${response.body}');
         return fallbackResult();
       }
+    } on GroqRateLimitException {
+      rethrow;
     } catch (e, stack) {
       debugPrint('[GroqVision] ✗ Network/exception error: $e');
       debugPrint('[GroqVision]   Stack: $stack');
@@ -176,10 +187,15 @@ Additional rules:
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         return _parseResponse(data, word);
+      } else if (response.statusCode == 429) {
+        debugPrint('[GroqVision] ✗ Rate limited (429). Body: ${response.body}');
+        throw const GroqRateLimitException();
       } else {
-        debugPrint('[GroqVision] ✗ Non-200: ${response.body}');
+        debugPrint('[GroqVision] ✗ HTTP ${response.statusCode}: ${response.body}');
         return fallbackResult();
       }
+    } on GroqRateLimitException {
+      rethrow;
     } catch (e, stack) {
       debugPrint('[GroqVision] ✗ Error: $e\n$stack');
       return fallbackResult();
