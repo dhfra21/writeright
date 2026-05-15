@@ -211,6 +211,18 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> with Widg
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _handleAddChild,
+        backgroundColor: AppTheme.accentGreen,
+        icon: const Icon(Icons.person_add_rounded, color: Colors.white),
+        label: Text(
+          'Add Child',
+          style: GoogleFonts.nunito(
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
+        ),
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : CustomPaint(
@@ -227,6 +239,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> with Widg
                         _buildNoChildrenState()
                       else
                         _buildProgressCard(),
+                      const SizedBox(height: 80),
                     ],
                   ),
                 ),
@@ -274,56 +287,58 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> with Widg
             Wrap(
               spacing: 12,
               runSpacing: 12,
-              children: _children.map((child) {
-                final isSelected = selectedChild?.id == child.id;
-                return GestureDetector(
-                  onTap: () async {
-                    appState.selectChild(child);
-                    final gamService = context.read<GamificationService>();
-                    gamService.setAccessToken(appState.accessToken);
-                    await gamService.setChildId(child.id);
-                    _loadProgressForChild(child);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppTheme.primaryOrange.withValues(alpha: 0.15)
-                          : AppTheme.cardWhite,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
+              children: [
+                ..._children.map((child) {
+                  final isSelected = selectedChild?.id == child.id;
+                  return GestureDetector(
+                    onTap: () async {
+                      appState.selectChild(child);
+                      final gamService = context.read<GamificationService>();
+                      gamService.setAccessToken(appState.accessToken);
+                      await gamService.setChildId(child.id);
+                      _loadProgressForChild(child);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
                         color: isSelected
-                            ? AppTheme.primaryOrange
-                            : const Color(0xFFE8E8E8),
-                        width: isSelected ? 2 : 1,
+                            ? AppTheme.primaryOrange.withValues(alpha: 0.15)
+                            : AppTheme.cardWhite,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppTheme.primaryOrange
+                              : const Color(0xFFE8E8E8),
+                          width: isSelected ? 2 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            child.avatarEmoji ?? '👦',
+                            style: const TextStyle(fontSize: 24),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            child.name,
+                            style: GoogleFonts.nunito(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: isSelected
+                                  ? AppTheme.primaryOrange
+                                  : AppTheme.textDark,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          child.avatarEmoji ?? '👦',
-                          style: const TextStyle(fontSize: 24),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          child.name,
-                          style: GoogleFonts.nunito(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: isSelected
-                                ? AppTheme.primaryOrange
-                                : AppTheme.textDark,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
+                  );
+                }),
+              ],
             ),
           ],
         ),
@@ -358,6 +373,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> with Widg
               ),
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: _handleAddChild,
+              style: FilledButton.styleFrom(backgroundColor: AppTheme.accentGreen),
+              icon: const Icon(Icons.person_add_rounded),
+              label: Text(
+                'Add Child',
+                style: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+              ),
+            ),
           ],
         ),
       ),
@@ -380,7 +405,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> with Widg
     }
 
     final progress = _selectedChildProgress;
-    if (progress == null) {
+    final hasNoActivity = progress == null ||
+        (progress.totalXp == 0 &&
+            progress.totalStars == 0 &&
+            progress.streakDays == 0);
+
+    if (hasNoActivity) {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(32),

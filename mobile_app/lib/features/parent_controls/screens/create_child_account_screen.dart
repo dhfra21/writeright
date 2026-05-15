@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../../core/state/app_state.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../screens/level_selection_screen.dart';
 import '../../../screens/parent_dashboard_screen.dart';
 import '../../../services/children/children_service.dart';
 
@@ -16,7 +17,12 @@ class _AvatarOption {
 }
 
 class CreateChildAccountScreen extends StatefulWidget {
-  const CreateChildAccountScreen({super.key});
+  /// Set [fromPlay] to true when navigating here from the "Start Playing"
+  /// button because the account has no children yet. On success the user is
+  /// routed to LevelSelectionScreen; skipping returns to the home screen.
+  const CreateChildAccountScreen({super.key, this.fromPlay = false});
+
+  final bool fromPlay;
 
   @override
   State<CreateChildAccountScreen> createState() =>
@@ -101,11 +107,17 @@ class _CreateChildAccountScreenState extends State<CreateChildAccountScreen> {
         appState.selectChild(child);
         setState(() => _isLoading = false);
 
-        // Navigate to dashboard
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const ParentDashboardScreen()),
-          (route) => false,
-        );
+        if (widget.fromPlay) {
+          // Go straight to level selection so the child can play immediately
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const LevelSelectionScreen()),
+          );
+        } else {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const ParentDashboardScreen()),
+            (route) => false,
+          );
+        }
         return;
       }
     }
@@ -113,18 +125,21 @@ class _CreateChildAccountScreenState extends State<CreateChildAccountScreen> {
     if (!mounted) return;
     setState(() => _isLoading = false);
 
-    // Show error if child creation failed
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Failed to create child profile. Please try again.')),
     );
   }
 
   void _skipToHome() {
-    // Go to dashboard even if no child is created
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const ParentDashboardScreen()),
-      (route) => false,
-    );
+    if (widget.fromPlay) {
+      // Return to home screen without creating a child
+      Navigator.of(context).pop();
+    } else {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ParentDashboardScreen()),
+        (route) => false,
+      );
+    }
   }
 
   @override

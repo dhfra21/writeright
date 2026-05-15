@@ -3,14 +3,58 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../core/state/app_state.dart';
 import '../core/theme/app_theme.dart';
+import '../features/parent_controls/screens/create_child_account_screen.dart';
 import '../features/parent_controls/screens/parent_login_screen.dart';
+import '../services/children/children_service.dart';
 import 'level_selection_screen.dart';
 import 'parent_dashboard_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
-  void _onParentTap(BuildContext context) {
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  bool _isCheckingChildren = false;
+
+  Future<void> _onPlayTap() async {
+    final appState = context.read<AppState>();
+
+    if (!appState.isLoggedIn) {
+      if (!mounted) return;
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const LevelSelectionScreen()));
+      return;
+    }
+
+    // Already have a selected child — go straight to play
+    if (appState.selectedChild != null) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const LevelSelectionScreen()));
+      return;
+    }
+
+    // Logged in but no child selected — check the API
+    setState(() => _isCheckingChildren = true);
+    try {
+      final children = await ChildrenService().getChildren(appState.accessToken!);
+      if (!mounted) return;
+
+      if (children.isNotEmpty) {
+        appState.selectChild(children.first);
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const LevelSelectionScreen()));
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CreateChildAccountScreen(fromPlay: true)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isCheckingChildren = false);
+    }
+  }
+
+  void _onParentTap() {
     final appState = context.read<AppState>();
     if (appState.isLoggedIn) {
       Navigator.push(
@@ -80,18 +124,14 @@ class HomeScreen extends StatelessWidget {
 
                 // Start Playing button
                 _PlayButton(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const LevelSelectionScreen(),
-                    ),
-                  ),
+                  isLoading: _isCheckingChildren,
+                  onTap: _onPlayTap,
                 ),
 
                 const SizedBox(height: 18),
 
                 // Parent Dashboard button
-                _ParentButton(onTap: () => _onParentTap(context)),
+                _ParentButton(onTap: _onParentTap),
 
                 const SizedBox(height: 36),
               ],
@@ -105,13 +145,14 @@ class HomeScreen extends StatelessWidget {
 
 class _PlayButton extends StatelessWidget {
   final VoidCallback onTap;
+  final bool isLoading;
 
-  const _PlayButton({required this.onTap});
+  const _PlayButton({required this.onTap, this.isLoading = false});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: isLoading ? null : onTap,
       child: Container(
         width: double.infinity,
         height: 90,
@@ -131,15 +172,24 @@ class _PlayButton extends StatelessWidget {
           ],
         ),
         child: Center(
-          child: Text(
-            'Start Playing!',
-            style: GoogleFonts.nunito(
-              fontSize: 28,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-              letterSpacing: 0.5,
-            ),
-          ),
+          child: isLoading
+              ? const SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 3,
+                  ),
+                )
+              : Text(
+                  'Start Playing!',
+                  style: GoogleFonts.nunito(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
         ),
       ),
     );
