@@ -208,10 +208,10 @@ class _WordPracticeScreenState extends State<WordPracticeScreen> {
 
   int _starsForScore(double similarity) {
     final pct = similarity * 100;
-    if (pct >= 80) return 5;
-    if (pct >= 60) return 4;
-    if (pct >= 40) return 3;
-    if (pct >= 20) return 2;
+    if (pct >= 85) return 5;
+    if (pct >= 70) return 4;
+    if (pct >= 50) return 3;
+    if (pct >= 30) return 2;
     return 1;
   }
 
@@ -1069,10 +1069,10 @@ class _FeedbackPanel extends StatelessWidget {
   Widget _buildScoreStars(double similarity) {
     final pct = similarity * 100;
     int starCount;
-    if (pct >= 80) starCount = 5;
-    else if (pct >= 60) starCount = 4;
-    else if (pct >= 40) starCount = 3;
-    else if (pct >= 20) starCount = 2;
+    if (pct >= 85) starCount = 5;
+    else if (pct >= 70) starCount = 4;
+    else if (pct >= 50) starCount = 3;
+    else if (pct >= 30) starCount = 2;
     else starCount = 1;
 
     return Row(
